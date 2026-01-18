@@ -1,0 +1,6 @@
+
+{
+  "name": "StegaVault - Professional Steganography Suite",
+  "description": "A high-performance web application for hiding and extracting secret data within images using advanced LSB steganography and AES-GCM encryption.",
+  "requestFramePermissions": []
+}
