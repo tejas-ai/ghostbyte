@@ -1,5 +1,6 @@
 {
   "name": "ghostbyte-steganography-system",
+  "description": "Advanced client-side steganography suite with AES-GCM encryption.",
   "private": true,
   "version": "0.0.0",
   "type": "module",
