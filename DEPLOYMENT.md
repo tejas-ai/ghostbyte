@@ -1,6 +1,6 @@
-# 🚀 Deployment Guide for GhostByte
+# 🚀 Deployment Guide for QuietSend
 
-This guide explains how to release GhostByte to the public and how to access it on your iPhone.
+This guide explains how to release QuietSend to the public and how to access it on your iPhone.
 
 ## 📱 Option 1: Instant Local Access (iPhone on same WiFi)
 
@@ -31,14 +31,14 @@ To make the app available to anyone, anywhere (including your iPhone on 4G/5G), 
     -   Go to [netlify.com](https://www.netlify.com/) and sign up/log in.
     -   Go to the "Sites" tab.
     -   Drag and drop the **`dist`** folder from your file explorer onto the Netlify page.
-    -   Wait a few seconds. Netlify will give you a public URL (e.g., `https://ghostbyte-1234.netlify.app`).
+    -   Wait a few seconds. Netlify will give you a public URL (e.g., `https://quietsend-1234.netlify.app`).
 
 ### Method B: Connect to GitHub (Recommended for Updates)
 
 1.  Push your code to a GitHub repository.
 2.  Go to [Vercel.com](https://vercel.com/) or [Netlify.com](https://netlify.com/).
 3.  Click "Add New Project" / "Import from Git".
-4.  Select your GhostByte repository.
+4.  Select your QuietSend repository.
 5.  **Build Settings** (usually auto-detected):
     -   **Build Command**: `npm run build`
     -   **Output Directory**: `dist`

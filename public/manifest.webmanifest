@@ -1,0 +1,18 @@
+{
+  "name": "QuietSend Steganography Enclave",
+  "short_name": "QuietSend",
+  "description": "Zero-knowledge client-side encrypted steganography and digital forensics enclave.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#06070f",
+  "theme_color": "#06070f",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

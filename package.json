@@ -1,28 +1,32 @@
 {
-  "name": "ghostbyte-steganography-system",
-  "description": "Advanced client-side steganography suite with AES-GCM encryption.",
+  "name": "quietsend-steganography-system",
+  "description": "QuietSend — Advanced client-side steganography suite with authenticated AES-GCM-256 (600k PBKDF2 iterations) & Zero-Server-Retention.",
   "private": true,
-  "version": "0.0.0",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.35.0",
-    "lucide-react": "^0.562.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "@types/utif": "^3.0.6",
+    "framer-motion": "^13.1.0",
+    "lucide-react": "^1.31.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "utif": "^3.1.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.18",
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "autoprefixer": "^10.4.23",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.18",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1"
   }
 }

@@ -1,0 +1,11 @@
+{
+  "title": "QuietSend | Advanced Steganography & Cryptographic Enclave",
+  "description": "Conceal confidential files & messages imperceptibly inside lossless photos using authenticated AES-GCM-256 and LSB spatial multiplexing.",
+  "language": "en",
+  "icons": {
+    "icon": "/logo.png"
+  },
+  "openGraph": {
+    "image": "/logo.png"
+  }
+}

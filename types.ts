@@ -1,9 +1,39 @@
-
 export enum ToolType {
+  HOME = 'home',
   ENCODER = 'encoder',
   DECODER = 'decoder',
   COMPARATOR = 'comparator',
   SETTINGS = 'settings'
+}
+
+export type TabId = 'encoder' | 'decoder' | 'forensics' | 'settings' | 'home' | 'comparator' | ToolType;
+
+export type LangCode = 'EN' | 'HI' | 'KN' | 'ES' | 'FR';
+export type Language = 'English' | 'Hindi' | 'Kannada' | 'Spanish' | 'French' | LangCode;
+
+export interface GhostFile {
+  name: string;
+  data: Uint8Array;
+  size?: number;
+}
+
+export type DecodeResult =
+  | { type: 'text'; content: string; rawBytes?: Uint8Array }
+  | { type: 'file'; name: string; data: Uint8Array }
+  | { type: 'vault'; files: GhostFile[] }
+  | { type: 'binary'; data: Uint8Array };
+
+export interface ForensicResult {
+  mse: number;
+  psnr: number;
+  heatmapUrl: string;
+  diffUrl?: string;
+}
+
+export type EntropyLevel = 'none' | 'weak' | 'medium' | 'strong';
+
+export interface PayloadMode {
+  mode: 'text' | 'files';
 }
 
 export interface FileData {

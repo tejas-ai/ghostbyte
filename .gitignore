@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Tutorial videos — 234MB, served from external storage, not from the repo.
+# See docs/ASSETS.md for the hosting setup.
+public/videos/

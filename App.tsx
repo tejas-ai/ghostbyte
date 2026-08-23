@@ -1,79 +1,62 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { LanguageProvider } from './contexts/LanguageContext';
 import Navigation from './components/Navigation';
 import Encoder from './components/Encoder';
 import Decoder from './components/Decoder';
 import Comparator from './components/Comparator';
 import Settings from './components/Settings';
-import { ToolType } from './types';
-import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
+import EnclaveSidebar from './components/EnclaveSidebar';
+import KeyringModal from './components/KeyringModal';
+import MessengerGuideModal from './components/MessengerGuideModal';
+import type { TabId } from './types';
 
-const App: React.FC = () => {
-  return (
-    <LanguageProvider>
-      <AppContent />
-    </LanguageProvider>
-  );
-};
-
-const AppContent: React.FC = () => {
-  const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<ToolType>(ToolType.ENCODER);
+function AppInner() {
+  const [tab, setTab] = useState<TabId>('encoder');
+  const [keyringOpen, setKeyringOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 pb-20 selection:bg-blue-500/30 selection:text-blue-200">
-      {/* Background decoration */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px]" />
-      </div>
+    <div className="min-h-screen bg-[#06080e] text-[#f8fafc] flex flex-col relative selection:bg-blue-600/30 selection:text-blue-100">
+      <div className="relative flex flex-col min-h-screen z-10">
+        <Navigation
+          active={tab}
+          onTab={setTab}
+          onOpenKeyring={() => setKeyringOpen(true)}
+          onOpenGuide={() => setGuideOpen(true)}
+        />
 
-      <header className="relative z-10 pt-16 pb-12 text-center px-4">
-        <div className="inline-flex items-center space-x-2 mb-4">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-            </svg>
+        {/* 100% Full-Screen Expansive Studio Layout (Main Workbench + Enclave Live Telemetry) */}
+        <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Primary Workbench Column (8 cols on large screen) */}
+            <main className="lg:col-span-8 space-y-6">
+              {tab === 'encoder' && <Encoder onOpenGuide={() => setGuideOpen(true)} onOpenKeyring={() => setKeyringOpen(true)} />}
+              {tab === 'decoder' && <Decoder onOpenKeyring={() => setKeyringOpen(true)} />}
+              {(tab === 'forensics' || (tab as string) === 'comparator') && <Comparator />}
+              {tab === 'settings' && <Settings hackerMode={false} onOpenKeyring={() => setKeyringOpen(true)} onOpenGuide={() => setGuideOpen(true)} />}
+            </main>
+
+            {/* Live Cryptographic Enclave Telemetry Column (4 cols on large screen) */}
+            <div className="lg:col-span-4 w-full">
+              <EnclaveSidebar currentTab={tab} onOpenKeyring={() => setKeyringOpen(true)} onOpenGuide={() => setGuideOpen(true)} />
+            </div>
           </div>
-          <span className="text-xl font-bold tracking-tighter text-gray-900 dark:text-white">{t.app.title}</span>
         </div>
-        <h1 className="text-5xl md:text-7xl font-black text-gray-900 dark:text-white mb-6 tracking-tight">
-          {t.app.tagline.split(' ').map((word, i, arr) =>
-            i < arr.length / 2 ? <span key={i}>{word} </span> : null
-          )}
-          <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
-            {t.app.tagline.split(' ').slice(Math.ceil(t.app.tagline.split(' ').length / 2)).join(' ')}
-          </span>
-        </h1>
-        <p className="max-w-2xl mx-auto text-gray-600 dark:text-gray-400 text-lg md:text-xl font-light leading-relaxed">
-          {t.app.description}
-        </p>
-      </header>
 
-      <main className="relative z-10 px-4">
-        <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
+        {/* Keyring Studio Modal */}
+        <KeyringModal isOpen={keyringOpen} onClose={() => setKeyringOpen(false)} />
 
-        <div className="transition-all duration-500">
-          {activeTab === ToolType.ENCODER && <Encoder />}
-          {activeTab === ToolType.DECODER && <Decoder />}
-          {activeTab === ToolType.COMPARATOR && <Comparator />}
-          {activeTab === ToolType.SETTINGS && <Settings />}
-        </div>
-      </main>
-
-      <footer className="mt-32 text-center px-4 text-gray-500 text-sm border-t border-gray-200 dark:border-gray-900 pt-12">
-        <div className="max-w-4xl mx-auto">
-          <p className="mb-4">
-            {t.app.footer_desc}
-            <br />
-            Remember to use lossless formats (like PNG) for sharing encoded files to avoid compression artifacts that destroy hidden data.
-          </p>
-          <p className="opacity-50 font-mono">
-            {t.app.footer_rights}
-          </p>
-        </div>
-      </footer>
+        {/* Messenger Stealth Dispatcher Guide Modal */}
+        <MessengerGuideModal isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
+      </div>
     </div>
   );
-};
+}
 
-export default App;
+export default function App() {
+  return (
+    <LanguageProvider>
+      <AppInner />
+    </LanguageProvider>
+  );
+}
