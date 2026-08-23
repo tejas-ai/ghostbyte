@@ -33,7 +33,7 @@ function AppInner() {
               {tab === 'encoder' && <Encoder onOpenGuide={() => setGuideOpen(true)} onOpenKeyring={() => setKeyringOpen(true)} />}
               {tab === 'decoder' && <Decoder onOpenKeyring={() => setKeyringOpen(true)} />}
               {(tab === 'forensics' || (tab as string) === 'comparator') && <Comparator />}
-              {tab === 'settings' && <Settings hackerMode={false} onOpenKeyring={() => setKeyringOpen(true)} onOpenGuide={() => setGuideOpen(true)} />}
+              {tab === 'settings' && <Settings onOpenKeyring={() => setKeyringOpen(true)} onOpenGuide={() => setGuideOpen(true)} />}
             </main>
 
             {/* Live Cryptographic Enclave Telemetry Column (4 cols on large screen) */}

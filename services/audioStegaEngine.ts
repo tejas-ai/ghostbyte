@@ -6,9 +6,6 @@
 
 import { zeroFill } from './stegaEngine';
 
-const enc = new TextEncoder();
-const dec = new TextDecoder();
-
 export interface WavHeaderInfo {
   numChannels: number;
   sampleRate: number;
@@ -63,7 +60,7 @@ export function parseWavHeader(buffer: ArrayBuffer): { header: WavHeaderInfo; da
   let dataOffset = 44;
   let dataSize = 0;
 
-  while (pos < buffer.byteLength - 8) {
+  while (pos + 8 <= buffer.byteLength) {
     const chunkId = String.fromCharCode(
       view.getUint8(pos),
       view.getUint8(pos + 1),
@@ -72,7 +69,7 @@ export function parseWavHeader(buffer: ArrayBuffer): { header: WavHeaderInfo; da
     );
     const chunkSize = view.getUint32(pos + 4, true);
 
-    if (chunkId === 'fmt ') {
+    if (chunkId === 'fmt ' && chunkSize >= 16 && pos + 8 + 16 <= buffer.byteLength) {
       fmtFound = true;
       audioFormat = view.getUint16(pos + 8, true);
       numChannels = view.getUint16(pos + 10, true);
@@ -80,27 +77,52 @@ export function parseWavHeader(buffer: ArrayBuffer): { header: WavHeaderInfo; da
       byteRate = view.getUint32(pos + 16, true);
       blockAlign = view.getUint16(pos + 20, true);
       bitsPerSample = view.getUint16(pos + 22, true);
-      pos += 8 + chunkSize;
+
+      // WAVE_FORMAT_EXTENSIBLE stores the real format code in the extension.
+      if (audioFormat === 0xfffe && chunkSize >= 40 && pos + 8 + 26 <= buffer.byteLength) {
+        audioFormat = view.getUint16(pos + 8 + 24, true);
+      }
     } else if (chunkId === 'data') {
       dataFound = true;
       dataOffset = pos + 8;
       dataSize = Math.min(chunkSize, buffer.byteLength - dataOffset);
       break;
-    } else {
-      pos += 8 + chunkSize;
     }
+
+    // RIFF chunks are word-aligned: an odd-sized chunk is followed by a pad
+    // byte that is not counted in chunkSize. Without this the walk desynced on
+    // any file carrying an odd-length LIST/INFO chunk before `data`, and every
+    // field after it was read from the wrong offset.
+    const advance = 8 + chunkSize + (chunkSize & 1);
+    if (advance <= 8) break; // zero or corrupt size: stop rather than spin
+    pos += advance;
   }
 
   if (!fmtFound || !dataFound) {
-    throw new Error('Malformed WAV file: could not find valid fmt or data chunk.');
+    throw new Error('Malformed WAV file: could not find a valid fmt or data chunk.');
   }
 
   if (audioFormat !== 1) {
-    throw new Error('Unsupported WAV encoding: only uncompressed PCM WAV is supported.');
+    throw new Error('Unsupported WAV encoding: only uncompressed PCM is supported.');
   }
 
-  if (bitsPerSample !== 16 && bitsPerSample !== 8 && bitsPerSample !== 24) {
-    throw new Error(`Unsupported bit depth: ${bitsPerSample}-bit. Please use standard 16-bit WAV.`);
+  // Only 16-bit is implemented end to end. 8- and 24-bit used to pass this
+  // check and then be mis-read: the encoder skipped 24-bit samples entirely and
+  // the decoder read one byte of every three, producing a corrupt carrier with
+  // no error and an unrecoverable payload.
+  if (bitsPerSample !== 16) {
+    throw new Error(
+      `Unsupported bit depth: ${bitsPerSample}-bit. Convert the file to 16-bit PCM WAV first.`
+    );
+  }
+
+  const expectedBlockAlign = numChannels * (bitsPerSample / 8);
+  if (blockAlign !== expectedBlockAlign) {
+    throw new Error('Malformed WAV file: block alignment does not match channel count and bit depth.');
+  }
+
+  if (numChannels < 1 || numChannels > 8) {
+    throw new Error(`Unsupported channel count: ${numChannels}.`);
   }
 
   const bytesPerSample = bitsPerSample / 8;
@@ -263,18 +285,12 @@ export async function decodeWavAudio(
 
   onProgress?.(35, 'Reading audio bitstream length prefix...');
   // Read first 32 bits (4 bytes) to determine payload length
-  let lenVal = 0;
-  let bitsRead = 0;
-  let sampleIdx = 0;
-
   const headerChunks: number[] = [];
   const requiredSamplesForLen = Math.ceil(32 / bitsShift);
 
   for (let s = 0; s < requiredSamplesForLen && s < header.totalSamples; s++) {
     const sampleOffset = dataStart + s * bytesPerSample;
-    let sampleVal = header.bitsPerSample === 16
-      ? dataView.getInt16(sampleOffset, true) & 0xffff
-      : dataView.getUint8(sampleOffset);
+    let sampleVal = dataView.getInt16(sampleOffset, true) & 0xffff;
 
     const chunk = sampleVal & ((1 << bitsShift) - 1);
     headerChunks.push(chunk);
@@ -315,9 +331,7 @@ export async function decodeWavAudio(
 
   for (let s = requiredSamplesForLen; s < totalSamplesNeeded; s++) {
     const sampleOffset = dataStart + s * bytesPerSample;
-    const sampleVal = header.bitsPerSample === 16
-      ? dataView.getInt16(sampleOffset, true) & 0xffff
-      : dataView.getUint8(sampleOffset);
+    const sampleVal = dataView.getInt16(sampleOffset, true) & 0xffff;
 
     const chunk = sampleVal & ((1 << bitsShift) - 1);
 

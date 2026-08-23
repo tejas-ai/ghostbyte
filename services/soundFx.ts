@@ -5,8 +5,13 @@ class SoundFxEngine {
   private isMuted: boolean = false;
 
   constructor() {
-    const saved = localStorage.getItem('quietsend_sound_muted');
-    this.isMuted = saved === 'true';
+    try {
+      const saved = localStorage.getItem('quietsend_sound_muted');
+      this.isMuted = saved === 'true';
+    } catch {
+      // Sandboxed iframe or private browsing may deny localStorage access.
+      this.isMuted = false;
+    }
   }
 
   private initContext() {

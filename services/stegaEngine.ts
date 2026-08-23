@@ -1,6 +1,14 @@
 import UTIF from 'utif';
 import { processPixelsWithWorker } from './workerClient';
+import {
+  chunksToBytes,
+  DENSITY_BITS as BITS,
+  DENSITY_PROBE_ORDER as PROBE_ORDER,
+  DEFAULT_DENSITY as DEFAULT_D,
+  type CapacityDensity,
+} from './bitCodec';
 import { isAsymmetricPayload, decryptWithPrivateKey } from './asymmetricCrypto';
+import { asRandomTarget, asImageBytes } from './binary';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -9,7 +17,8 @@ const GHOST_VAULT_SIG = enc.encode('GHOST_VAULT'); // 11 bytes
 const GHOST_FILE_SIG  = enc.encode('GHOST_FILE');  // 10 bytes
 const GHOST_HONEY_SIG = enc.encode('GHOST_HONEY'); // 11 bytes
 
-export type CapacityDensity = 'lsb4' | 'lsb6';
+export type { CapacityDensity } from './bitCodec';
+export { DENSITY_BITS, DENSITY_PROBE_ORDER, DEFAULT_DENSITY } from './bitCodec';
 
 /** Constant-time byte buffer comparison to prevent timing side-channel attacks */
 export function constantTimeCompare(a: Uint8Array, b: Uint8Array): boolean {
@@ -21,87 +30,83 @@ export function constantTimeCompare(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0;
 }
 
-/** Pure JS fallback for SHA-256 (handles mobile browsers accessing over local HTTP) */
+const SHA256_K = new Uint32Array([
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+]);
+
+/**
+ * Pure JS SHA-256, used only when crypto.subtle is unavailable (a non-secure
+ * origin, e.g. reaching a dev server over plain HTTP on a LAN).
+ *
+ * Builds an explicitly padded message buffer and a dense 64-word schedule per
+ * block. An earlier version assembled the schedule in a sparse array, so any
+ * input shorter than one block left holes that read back as `undefined` and
+ * propagated NaN through every round - it returned a wrong digest for every
+ * input. Covered by RFC 6234 vectors in the self-test suite.
+ */
 function jsSha256(bytes: Uint8Array): string {
-  function rightRotate(value: number, amount: number): number {
-    return (value >>> amount) | (value << (32 - amount));
-  }
-  const mathPow = Math.pow;
-  const maxWord = mathPow(2, 32);
-  let i = 0, j = 0;
-  let result = '';
+  const rotr = (v: number, n: number): number => (v >>> n) | (v << (32 - n));
 
-  const words: number[] = [];
-  const asciiBitLength = bytes.length * 8;
+  const bitLen = bytes.length * 8;
+  // message + 0x80 + zero padding + 8-byte big-endian bit length, to a 64-byte multiple
+  const paddedLen = (bytes.length + 9 + 63) & ~63;
+  const msg = new Uint8Array(paddedLen);
+  msg.set(bytes, 0);
+  msg[bytes.length] = 0x80;
 
-  const hash = [
+  // 64-bit big-endian length. JS bitwise ops are 32-bit, so derive the high
+  // word by division rather than shifting.
+  const dv = new DataView(msg.buffer);
+  dv.setUint32(paddedLen - 8, Math.floor(bitLen / 0x100000000), false);
+  dv.setUint32(paddedLen - 4, bitLen >>> 0, false);
+
+  const h = new Uint32Array([
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
-  ];
+    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+  ]);
+  const w = new Uint32Array(64);
 
-  const k = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
-  ];
-
-  for (i = 0; i < bytes.length; i++) {
-    words[i >> 2] |= bytes[i] << (24 - (i % 4) * 8);
-  }
-  words[asciiBitLength >> 5] |= 0x80 << (24 - (asciiBitLength % 32));
-  words[(((asciiBitLength + 64) >> 9) << 4) + 15] = asciiBitLength;
-
-  for (i = 0; i < words.length; i += 16) {
-    const w = words.slice(i, i + 16);
-    while (w.length < 64) {
-      const idx = w.length;
-      const gamma0 = rightRotate(w[idx - 15], 7) ^ rightRotate(w[idx - 15], 18) ^ (w[idx - 15] >>> 3);
-      const gamma1 = rightRotate(w[idx - 2], 17) ^ rightRotate(w[idx - 2], 19) ^ (w[idx - 2] >>> 10);
-      w.push((w[idx - 16] + gamma0 + w[idx - 7] + gamma1) | 0);
+  for (let off = 0; off < paddedLen; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4, false);
+    for (let i = 16; i < 64; i++) {
+      const g0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      const g1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + g0 + w[i - 7] + g1) >>> 0;
     }
 
-    let [a, b, c, d, e, f, g, h] = hash;
+    let a = h[0], b = h[1], c = h[2], d = h[3];
+    let e = h[4], f = h[5], g = h[6], hh = h[7];
 
-    for (j = 0; j < 64; j++) {
-      const s1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
+    for (let i = 0; i < 64; i++) {
+      const s1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
       const ch = (e & f) ^ (~e & g);
-      const temp1 = (h + s1 + ch + k[j] + (w[j] || 0)) | 0;
-      const s0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
+      const t1 = (hh + s1 + ch + SHA256_K[i] + w[i]) >>> 0;
+      const s0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
       const maj = (a & b) ^ (a & c) ^ (b & c);
-      const temp2 = (s0 + maj) | 0;
+      const t2 = (s0 + maj) >>> 0;
 
-      h = g;
-      g = f;
-      f = e;
-      e = (d + temp1) | 0;
-      d = c;
-      c = b;
-      b = a;
-      a = (temp1 + temp2) | 0;
+      hh = g; g = f; f = e;
+      e = (d + t1) >>> 0;
+      d = c; c = b; b = a;
+      a = (t1 + t2) >>> 0;
     }
 
-    hash[0] = (hash[0] + a) | 0;
-    hash[1] = (hash[1] + b) | 0;
-    hash[2] = (hash[2] + c) | 0;
-    hash[3] = (hash[3] + d) | 0;
-    hash[4] = (hash[4] + e) | 0;
-    hash[5] = (hash[5] + f) | 0;
-    hash[6] = (hash[6] + g) | 0;
-    hash[7] = (hash[7] + h) | 0;
+    h[0] = (h[0] + a) >>> 0; h[1] = (h[1] + b) >>> 0;
+    h[2] = (h[2] + c) >>> 0; h[3] = (h[3] + d) >>> 0;
+    h[4] = (h[4] + e) >>> 0; h[5] = (h[5] + f) >>> 0;
+    h[6] = (h[6] + g) >>> 0; h[7] = (h[7] + hh) >>> 0;
   }
 
-  for (i = 0; i < 8; i++) {
-    for (j = 3; j >= 0; j--) {
-      const b = (hash[i] >> (j * 8)) & 255;
-      result += (b < 16 ? '0' : '') + b.toString(16);
-    }
-  }
-  return result;
+  let out = '';
+  for (let i = 0; i < 8; i++) out += h[i].toString(16).padStart(8, '0');
+  return out;
 }
 
 /** Calculate cryptographic SHA-256 hex checksum (with robust mobile fallback) */
@@ -304,6 +309,14 @@ export function parseZipArchive(buf: Uint8Array): Uint8Array | null {
   const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
   if (view.getUint32(0, true) !== 0x04034b50) return null;
 
+  // Only stored (method 0) entries can be handed back as-is. Without this check
+  // a deflated entry returned its compressed bytes presented as the file.
+  const method = view.getUint16(8, true);
+  if (method !== 0) return null;
+
+  const flags = view.getUint16(6, true);
+  if (flags & 0x0008) return null; // sizes live in a trailing data descriptor
+
   const nameLen = view.getUint16(26, true);
   const extraLen = view.getUint16(28, true);
   const compLen = view.getUint32(18, true);
@@ -311,7 +324,14 @@ export function parseZipArchive(buf: Uint8Array): Uint8Array | null {
   const dataStart = 30 + nameLen + extraLen;
   if (dataStart + compLen > buf.length) return null;
 
-  return buf.subarray(dataStart, dataStart + compLen);
+  const data = buf.subarray(dataStart, dataStart + compLen);
+
+  // The local header carries a CRC-32 of the stored bytes; verify it rather
+  // than trusting the offsets we just read out of untrusted input.
+  const expectedCrc = view.getUint32(14, true);
+  if (expectedCrc !== 0 && crc32(data) !== expectedCrc) return null;
+
+  return data;
 }
 
 /** Helper: Calculate dimension scaling */
@@ -376,23 +396,103 @@ export async function readImageFile(file: File): Promise<{ src: string; w: numbe
   });
 }
 
-// ── Passphrase generator (Cryptographically Secure via Web Crypto) ────────────
-export function generatePassphrase(): string {
-  const words = [
-    'alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel',
-    'india', 'juliet', 'kilo', 'lima', 'mike', 'november', 'oscar', 'papa',
-    'quebec', 'romeo', 'sierra', 'tango', 'uniform', 'victor', 'whiskey',
-    'xray', 'yankee', 'zulu', 'cyber', 'ghost', 'quiet', 'stealth', 'cipher',
-    'vector', 'matrix', 'nexus', 'prism', 'quantum', 'shadow', 'vortex',
-  ];
-  const r = new Uint32Array(4);
-  crypto.getRandomValues(r);
-  return Array.from(r).map((n) => words[n % words.length]).join('-');
+// ── Passphrase generator ──────────────────────────────────────────────────────
+
+/** Words per generated passphrase. 8 x log2(256) = 64 bits. */
+export const PASSPHRASE_WORD_COUNT = 8;
+
+/**
+ * 256 short, real, readable English words -- 8 bits of entropy each.
+ *
+ * Size and word count are the whole point. The previous list held 37 words and
+ * drew four of them: log2(37^4) = 20.8 bits, behind a button labelled "Generate
+ * High-Entropy Passphrase". That is exhaustible in seconds no matter how many
+ * PBKDF2 iterations sit behind it, and the list ships in the client bundle
+ * where any attacker can read it. 8 words from 256 gives 64 bits.
+ */
+const PASSPHRASE_WORDS: string[] = [
+  'anchor', 'amber', 'arbor', 'apex', 'aspen', 'atlas', 'aurora', 'autumn',
+  'basalt', 'beacon', 'birch', 'bison', 'blaze', 'bloom', 'bramble', 'bridge',
+  'cabin', 'canyon', 'cedar', 'cinder', 'citrus', 'clover', 'cobalt', 'comet',
+  'coral', 'cosmos', 'crater', 'crest', 'crimson', 'crystal', 'cyclone', 'dagger',
+  'dawn', 'delta', 'desert', 'dune', 'dusk', 'ember', 'equinox', 'estuary',
+  'falcon', 'fathom', 'fern', 'fjord', 'flint', 'forest', 'fossil', 'foxglove',
+  'galaxy', 'garnet', 'geyser', 'glacier', 'granite', 'grove', 'gulf', 'harbor',
+  'hazel', 'heron', 'hollow', 'horizon', 'indigo', 'island', 'ivory', 'jasper',
+  'jungle', 'juniper', 'kelp', 'kestrel', 'lagoon', 'lantern', 'lattice', 'lichen',
+  'lilac', 'lumen', 'lunar', 'lyric', 'magnet', 'maple', 'marble', 'meadow',
+  'mesa', 'meteor', 'mint', 'mirage', 'monsoon', 'moss', 'nebula', 'nectar',
+  'nickel', 'nimbus', 'oasis', 'obsidian', 'ochre', 'onyx', 'opal', 'orbit',
+  'orchid', 'osprey', 'otter', 'oxide', 'pampas', 'peak', 'pebble', 'pewter',
+  'pine', 'plume', 'pollen', 'prairie', 'prism', 'pulsar', 'quarry', 'quartz',
+  'quill', 'rapids', 'raven', 'reef', 'ridge', 'rill', 'river', 'rune',
+  'sable', 'saffron', 'sage', 'sandbar', 'sapphire', 'savanna', 'sequoia', 'shale',
+  'shore', 'silver', 'slate', 'solstice', 'spruce', 'starling', 'steppe', 'stone',
+  'summit', 'sundial', 'talon', 'tamarind', 'tempest', 'thicket', 'thistle', 'thorn',
+  'tide', 'timber', 'topaz', 'torrent', 'tundra', 'turquoise', 'umber', 'valley',
+  'velvet', 'verdant', 'vertex', 'vesper', 'violet', 'vireo', 'vista', 'walnut',
+  'warbler', 'willow', 'wisp', 'zenith', 'acorn', 'alder', 'almond', 'antler',
+  'anvil', 'arch', 'ardent', 'arid', 'ballast', 'bayou', 'bellow', 'betony',
+  'bittern', 'bluff', 'bolder', 'borealis', 'bracken', 'breeze', 'brindle', 'brook',
+  'burrow', 'cactus', 'cairn', 'caldera', 'camber', 'cascade', 'cavern', 'chalk',
+  'cirrus', 'cliff', 'cormorant', 'cove', 'crag', 'cricket', 'cypress', 'dahlia',
+  'damson', 'dapple', 'delve', 'dogwood', 'drift', 'eagle', 'echo', 'eddy',
+  'elder', 'elm', 'emerald', 'estate', 'faience', 'fallow', 'feldspar', 'fescue',
+  'fig', 'finch', 'firth', 'flax', 'fleece', 'flume', 'foliage', 'ford',
+  'fresco', 'frost', 'gable', 'gale', 'gannet', 'gorse', 'gossamer', 'gravel',
+  'grebe', 'gully', 'gypsum', 'halcyon', 'hamlet', 'harrier', 'heath', 'hemlock',
+  'hickory', 'hoarfrost', 'hornbeam', 'husk', 'icicle', 'inlet', 'iris', 'jade',
+  'jetty', 'kernel', 'kettle', 'knoll', 'lark', 'larch', 'laurel', 'ledger',
+];
+
+/** Entropy in bits of one generated passphrase. */
+export const PASSPHRASE_BITS = Math.floor(PASSPHRASE_WORD_COUNT * Math.log2(PASSPHRASE_WORDS.length));
+
+/**
+ * Draw a word index uniformly from [0, range) using rejection sampling.
+ * `n % range` would bias toward low indices whenever range does not divide 2^32.
+ */
+function uniformIndex(range: number): number {
+  const limit = Math.floor(0x100000000 / range) * range;
+  const buf = new Uint32Array(1);
+  for (;;) {
+    crypto.getRandomValues(buf);
+    if (buf[0] < limit) return buf[0] % range;
+  }
 }
 
-// ── Entropy calculation ───────────────────────────────────────────────────────
+export function generatePassphrase(): string {
+  const words: string[] = [];
+  for (let i = 0; i < PASSPHRASE_WORD_COUNT; i++) {
+    words.push(PASSPHRASE_WORDS[uniformIndex(PASSPHRASE_WORDS.length)]);
+  }
+  return words.join('-');
+}
+
+/** True when `pass` looks like output of generatePassphrase (or a Diceware phrase). */
+function looksLikeWordPhrase(pass: string): boolean {
+  const parts = pass.split(/[-\s]+/).filter(Boolean);
+  return parts.length >= 3 && parts.every((w) => /^[a-z]{2,12}$/.test(w));
+}
+
+// ── Entropy estimation ────────────────────────────────────────────────────────
+/**
+ * Estimate passphrase entropy in bits.
+ *
+ * Word phrases are scored per word against the generator's list, not per
+ * character against an alphabet. Scoring "anchor-cedar-fjord-lumen-quartz-tide"
+ * as 36 lowercase characters reports about 169 bits for a secret that actually
+ * carries 62 -- the character-class model only describes secrets drawn
+ * character by character.
+ */
 export function calcEntropy(pass: string): number {
   if (!pass) return 0;
+
+  if (looksLikeWordPhrase(pass)) {
+    const wordCount = pass.split(/[-\s]+/).filter(Boolean).length;
+    return wordCount * Math.log2(PASSPHRASE_WORDS.length);
+  }
+
   let pool = 0;
   if (/[a-z]/.test(pass)) pool += 26;
   if (/[A-Z]/.test(pass)) pool += 26;
@@ -406,16 +506,49 @@ export function yieldMainThread(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-// ── Key derivation cache for ultra-fast multi-pass decryption ──────────────
+// ── Key derivation cache ──────────────────────────────────────────────────────
+/**
+ * Caches derived AES keys so a decode that probes several container layouts pays
+ * the 600k-iteration PBKDF2 cost once per (passphrase, salt) pair.
+ *
+ * Entries are keyed by a digest of the passphrase and salt together with a
+ * per-session random pepper, never by the passphrase itself. The previous key
+ * was the template literal `${password}:${saltHex}`, which left every passphrase
+ * typed during the session sitting in a live Map as plaintext -- readable from
+ * any heap snapshot, crash dump or successful XSS -- while the surrounding code
+ * called zeroFill on a throwaway copy of the same bytes.
+ *
+ * The pepper means the cache keys are meaningless outside this page session,
+ * and the CryptoKey values are non-extractable, so the cache holds nothing that
+ * can be turned back into a passphrase.
+ */
 const keyCache = new Map<string, CryptoKey>();
+const KEY_CACHE_LIMIT = 20;
+
+/** Random per-session value mixed into cache keys. Never persisted. */
+const cachePepper = crypto.getRandomValues(new Uint8Array(16));
+
+async function keyCacheId(password: string, salt: Uint8Array): Promise<string> {
+  const pwBytes = enc.encode(password);
+  const material = new Uint8Array(cachePepper.length + salt.length + pwBytes.length);
+  material.set(cachePepper, 0);
+  material.set(salt, cachePepper.length);
+  material.set(pwBytes, cachePepper.length + salt.length);
+  try {
+    return await calcSha256(material);
+  } finally {
+    zeroFill(material);
+    zeroFill(pwBytes);
+  }
+}
 
 async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
   if (typeof crypto === 'undefined' || !crypto?.subtle) {
-    throw new Error('Web Crypto API is disabled by your mobile browser over unencrypted HTTP. Please connect via HTTPS or localhost to enable authenticated encryption.');
+    throw new Error('Web Crypto is unavailable on this origin. Connect over HTTPS or localhost to enable authenticated encryption.');
   }
-  const saltHex = Array.from(salt).map((b) => b.toString(16).padStart(2, '0')).join('');
-  const cacheKey = `${password}:${saltHex}`;
-  let cached = keyCache.get(cacheKey);
+
+  const cacheKey = await keyCacheId(password, salt);
+  const cached = keyCache.get(cacheKey);
   if (cached) return cached;
 
   const saltBuf = salt.byteOffset === 0 && salt.byteLength === salt.buffer.byteLength
@@ -426,7 +559,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   try {
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
-      pwBytes,
+      pwBytes as BufferSource,
       'PBKDF2',
       false,
       ['deriveKey'],
@@ -435,10 +568,10 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
       { name: 'PBKDF2', salt: saltBuf as ArrayBuffer, iterations: 600_000, hash: 'SHA-256' },
       keyMaterial,
       { name: 'AES-GCM', length: 256 },
-      false,
+      false, // non-extractable: the raw key never becomes readable to script
       ['encrypt', 'decrypt'],
     );
-    if (keyCache.size > 20) keyCache.clear();
+    if (keyCache.size >= KEY_CACHE_LIMIT) keyCache.clear();
     keyCache.set(cacheKey, key);
     return key;
   } finally {
@@ -446,7 +579,15 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   }
 }
 
-// ── AES-GCM-256 Encrypt with Zero-Fill Memory Cleansing ──────────────────────
+/** Drop every cached key. Called when the user clears the session. */
+export function clearKeyCache(): void {
+  keyCache.clear();
+}
+
+// ── AES-GCM-256 ───────────────────────────────────────────────────────────────
+// Wire: [salt:16][iv:12][ciphertext+tag]. Exported as encryptPayload /
+// decryptPayload so the self-tests exercise the same code the app uses, rather
+// than a re-implementation that can pass while the real path is broken.
 async function aesEncrypt(data: Uint8Array, password: string): Promise<Uint8Array> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv   = crypto.getRandomValues(new Uint8Array(12));
@@ -485,66 +626,14 @@ async function aesDecrypt(data: Uint8Array, password: string): Promise<Uint8Arra
   }
 }
 
-// ── Nibble helpers (LSB4 - 4 bits per RGB channel) ───────────────────────────
-function bytesToNibbles(bytes: Uint8Array): Uint8Array {
-  const nibbles = new Uint8Array(bytes.length * 2);
-  for (let i = 0; i < bytes.length; i++) {
-    nibbles[i * 2]     = (bytes[i] >> 4) & 0x0f;
-    nibbles[i * 2 + 1] = bytes[i] & 0x0f;
-  }
-  return nibbles;
-}
+/** Bytes AES-GCM adds to a payload: 16 salt + 12 IV + 16 authentication tag. */
+export const AES_OVERHEAD_BYTES = 44;
 
-function nibblesToBytes(nibbles: Uint8Array | number[]): Uint8Array {
-  const len = Math.floor(nibbles.length / 2);
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = ((nibbles[i * 2] & 0x0f) << 4) | (nibbles[i * 2 + 1] & 0x0f);
-  }
-  return bytes;
-}
+/** Seal a payload under a passphrase. Wire: [salt:16][iv:12][ct+tag]. */
+export const encryptPayload = aesEncrypt;
 
-// ── 6-Bit Chunk Helpers (LSB6 - 6 bits per RGB channel) ───────────────────────
-function bytesTo6BitChunks(bytes: Uint8Array): Uint8Array {
-  const totalBits = bytes.length * 8;
-  const numChunks = Math.ceil(totalBits / 6);
-  const chunks = new Uint8Array(numChunks);
-  let bitPos = 0;
-  for (let i = 0; i < numChunks; i++) {
-    let val = 0;
-    for (let b = 0; b < 6; b++) {
-      const currBit = bitPos + b;
-      if (currBit < totalBits) {
-        const byteIdx = currBit >> 3;
-        const bitInByte = 7 - (currBit & 7);
-        const bitVal = (bytes[byteIdx] >> bitInByte) & 1;
-        val = (val << 1) | bitVal;
-      } else {
-        val = val << 1;
-      }
-    }
-    chunks[i] = val & 0x3f;
-    bitPos += 6;
-  }
-  return chunks;
-}
-
-function sixBitChunksToBytes(chunks: Uint8Array | number[], byteCount: number): Uint8Array {
-  const bytes = new Uint8Array(byteCount);
-  const totalBits = byteCount * 8;
-  let bitPos = 0;
-  for (let i = 0; i < chunks.length && bitPos < totalBits; i++) {
-    const chunkVal = chunks[i] & 0x3f;
-    for (let b = 0; b < 6 && bitPos < totalBits; b++) {
-      const bitVal = (chunkVal >> (5 - b)) & 1;
-      const byteIdx = bitPos >> 3;
-      const bitInByte = 7 - (bitPos & 7);
-      bytes[byteIdx] |= (bitVal << bitInByte);
-      bitPos++;
-    }
-  }
-  return bytes;
-}
+/** Open a payload sealed by encryptPayload. Throws if the tag does not verify. */
+export const decryptPayload = aesDecrypt;
 
 // ── uint32 little-endian ──────────────────────────────────────────────────────
 function u32LE(n: number): Uint8Array {
@@ -644,12 +733,12 @@ function loadCanvas(src: string, maxDim?: number): Promise<{ ctx: CanvasRenderin
 }
 
 // ── Capacity (bytes) for a given image resolution & density mode ──────────────
-export function calculateCapacity(w: number, h: number, density: CapacityDensity = 'lsb6'): number {
-  const bitsPerChannel = density === 'lsb6' ? 6 : 4;
+export function calculateCapacity(w: number, h: number, density: CapacityDensity = DEFAULT_D): number {
+  const bitsPerChannel = BITS[density] ?? BITS[DEFAULT_D];
   return Math.max(0, Math.floor((w * h * 3 * bitsPerChannel - 32) / 8));
 }
 
-export async function getCarrierCapacity(file: File | string, density: CapacityDensity = 'lsb6'): Promise<number> {
+export async function getCarrierCapacity(file: File | string, density: CapacityDensity = DEFAULT_D): Promise<number> {
   const src = typeof file === 'string' ? file : URL.createObjectURL(file);
   const { w, h } = await loadCanvas(src);
   if (typeof file !== 'string') URL.revokeObjectURL(src);
@@ -687,22 +776,27 @@ export function buildGhostFile(name: string, data: Uint8Array): Uint8Array {
   return out;
 }
 
-// ── Encode (main) supporting LSB-4 (Stealth) and LSB-6 (Max Capacity) ─────────
+// ── Encode (main) ────────────────────────────────────────────────────────────
 export type ProgressCallback = (percent: number, status: string) => void;
+
+/** crypto.getRandomValues caps at 65536 bytes per call; fill larger buffers in slices. */
+export function fillRandom(buf: Uint8Array): void {
+  for (let i = 0; i < buf.length; i += 65536) {
+    crypto.getRandomValues(asRandomTarget(buf.subarray(i, Math.min(i + 65536, buf.length))));
+  }
+}
 
 export async function encodeImage(
   carrierSrc: string,
   payload: Uint8Array | string,
   password?: string,
-  density: CapacityDensity = 'lsb6',
+  density: CapacityDensity = DEFAULT_D,
   maxDimension: number = 0,
   onProgress?: ProgressCallback,
 ): Promise<string> {
-  let rawPayload = typeof payload === 'string' ? enc.encode(payload) : payload;
+  const rawPayload = typeof payload === 'string' ? enc.encode(payload) : payload;
   let data = rawPayload;
   let stream: Uint8Array | null = null;
-  let chunks6: Uint8Array | null = null;
-  let nibbles: Uint8Array | null = null;
 
   try {
     if (password && password.length > 0) {
@@ -727,88 +821,169 @@ export async function encodeImage(
     stream.set(u32LE(data.length), 0);
     stream.set(data, 4);
 
-    // Offload pixel bitstream injection to Web Worker for 60 FPS responsiveness
+    // Offload pixel bitstream injection to a Web Worker to keep the UI responsive.
     const modifiedPx = await processPixelsWithWorker(px, stream, density);
 
     onProgress?.(85, 'Rendering lossless steganographic container...');
     await yieldMainThread();
-    const finalImgData = new ImageData(modifiedPx, w, h);
-    ctx.putImageData(finalImgData, 0, 0);
-    return new Promise<string>((resolve) => {
+    ctx.putImageData(new ImageData(asImageBytes(modifiedPx), w, h), 0, 0);
+
+    return await new Promise<string>((resolve, reject) => {
       (ctx.canvas as HTMLCanvasElement).toBlob(
         (blob) => {
+          // toBlob yields null when the canvas is tainted or allocation fails.
+          // Rejecting here matters: throwing inside the callback would leave
+          // this promise permanently unsettled and hang the encode button.
+          if (!blob) {
+            reject(new Error('The browser could not render the stego image. The carrier may be too large for available memory.'));
+            return;
+          }
           onProgress?.(100, 'Encoding complete!');
-          resolve(URL.createObjectURL(blob!));
+          resolve(URL.createObjectURL(blob));
         },
         'image/png',
       );
     });
   } finally {
-    // Memory scrubbing for sensitive buffers
     zeroFill(stream);
-    zeroFill(chunks6);
-    zeroFill(nibbles);
+    // `data` is the ciphertext when a password was used; the caller still owns
+    // the plaintext payload, so that one is left alone.
+    if (data !== rawPayload) zeroFill(data);
   }
 }
 
-// ── Truly Deniable Uniform Entropy Dual-Vault (VeraCrypt-Style) Encoder ───────
+// ── Deniable dual-vault ──────────────────────────────────────────────────────
+
+/** salt(16) + iv(12) + length prefix(4) + GCM tag(16) */
+export const DUAL_VAULT_BLOCK_OVERHEAD = 48;
+
+/** Largest payload each half of a dual-vault container can hold. */
+export function dualVaultCapacity(totalCapacity: number): number {
+  const split = Math.floor(totalCapacity / 2);
+  return Math.max(0, Math.min(split, totalCapacity - split) - DUAL_VAULT_BLOCK_OVERHEAD);
+}
+
+/** Encrypt `payload` so the sealed block occupies exactly `blockSize` bytes. */
+async function buildVaultBlock(
+  payload: Uint8Array,
+  password: string,
+  blockSize: number,
+): Promise<Uint8Array> {
+  const innerLen = blockSize - 16 - 12 - 16; // minus salt, iv, GCM tag
+  if (innerLen < 4 + payload.length) {
+    throw new Error('Vault payload does not fit its half of the carrier.');
+  }
+  const inner = new Uint8Array(innerLen);
+  fillRandom(inner); // slack after the payload stays random
+  inner.set(u32LE(payload.length), 0);
+  inner.set(payload, 4);
+  try {
+    const block = await aesEncrypt(inner, password);
+    if (block.length !== blockSize) {
+      throw new Error(`Vault block size mismatch (${block.length} != ${blockSize}).`);
+    }
+    return block;
+  } finally {
+    zeroFill(inner);
+  }
+}
+
+/**
+ * Write two independently-encrypted vaults into one carrier, so that revealing
+ * the decoy passphrase under coercion discloses a plausible payload while the
+ * real one stays sealed and undetectable.
+ *
+ * Layout, where split = floor(capacity / 2):
+ *
+ *   [0, split)         decoy block     [salt:16][iv:12][ct+tag]
+ *   [split, capacity)  primary block   [salt:16][iv:12][ct+tag]
+ *
+ * Each block's plaintext is [len:4][payload][random padding], sized so its
+ * ciphertext fills its half exactly. There are no magic bytes, no plaintext
+ * length fields and no offset table inside the container: without one of the
+ * two passphrases every byte is indistinguishable from random.
+ *
+ * The fixed halves are what make this recoverable at all. AES-GCM must be given
+ * the exact ciphertext extent to verify its tag, so the decoder has to know
+ * where each block ends without being told. The previous scheme put the primary
+ * block at a payload-dependent tail offset and then guessed among sixteen
+ * hard-coded lengths to find it again, which left all but fifteen exact payload
+ * sizes permanently unrecoverable.
+ *
+ * Known limitation: the outer container header records a payload length equal
+ * to the carrier's full capacity, so an adversary who knows this tool can tell
+ * that a dual vault is present. What stays hidden is whether the second half
+ * holds anything, and what it holds.
+ */
+export async function sealDualVault(
+  primaryPayload: Uint8Array | string,
+  primaryPassword: string,
+  decoyPayload: Uint8Array | string,
+  decoyPassword: string,
+  totalCapacity: number,
+  onProgress?: ProgressCallback,
+): Promise<Uint8Array> {
+  if (!primaryPassword || !decoyPassword) {
+    throw new Error('A dual vault needs both a real passphrase and a separate decoy passphrase.');
+  }
+  if (primaryPassword === decoyPassword) {
+    throw new Error('The decoy passphrase must differ from the real one, or the decoy gives no cover.');
+  }
+
+  const split = Math.floor(totalCapacity / 2);
+  const rawPrimary = typeof primaryPayload === 'string' ? enc.encode(primaryPayload) : primaryPayload;
+  const rawDecoy = typeof decoyPayload === 'string' ? enc.encode(decoyPayload) : decoyPayload;
+
+  const perVault = dualVaultCapacity(totalCapacity);
+  const largest = Math.max(rawPrimary.length, rawDecoy.length);
+  if (largest > perVault) {
+    throw new Error(
+      `Each vault holds up to ${perVault.toLocaleString()} B in this carrier; the larger payload is ${largest.toLocaleString()} B. Use a larger image or a higher density.`
+    );
+  }
+
+  onProgress?.(30, 'Sealing decoy vault...');
+  const decoyBlock = await buildVaultBlock(rawDecoy, decoyPassword, split);
+
+  onProgress?.(55, 'Sealing hidden vault...');
+  const primaryBlock = await buildVaultBlock(rawPrimary, primaryPassword, totalCapacity - split);
+
+  const container = new Uint8Array(totalCapacity);
+  container.set(decoyBlock, 0);
+  container.set(primaryBlock, split);
+
+  zeroFill(decoyBlock);
+  zeroFill(primaryBlock);
+  return container;
+}
+
+/** Seal a dual vault and embed it in a carrier image. */
 export async function encodeHoneyVault(
   carrierSrc: string,
   primaryPayload: Uint8Array | string,
   primaryPassword: string,
   decoyPayload: Uint8Array | string,
   decoyPassword: string,
-  density: CapacityDensity = 'lsb6',
+  density: CapacityDensity = DEFAULT_D,
   maxDimension: number = 0,
   onProgress?: ProgressCallback,
 ): Promise<string> {
-  onProgress?.(10, 'Formatting decoy and primary payload partitions...');
-  const rawDecoy = typeof decoyPayload === 'string' ? enc.encode(decoyPayload) : decoyPayload;
-  const rawPrimary = typeof primaryPayload === 'string' ? enc.encode(primaryPayload) : primaryPayload;
-
-  // Prefix each inner payload with 4-byte LE length to avoid plaintext framing
-  const decoyInner = new Uint8Array(4 + rawDecoy.length);
-  decoyInner.set(u32LE(rawDecoy.length), 0);
-  decoyInner.set(rawDecoy, 4);
-
-  const primaryInner = new Uint8Array(4 + rawPrimary.length);
-  primaryInner.set(u32LE(rawPrimary.length), 0);
-  primaryInner.set(rawPrimary, 4);
-
-  onProgress?.(25, 'Encrypting decoy payload (Outer Block)...');
-  const encDecoy = await aesEncrypt(decoyInner, decoyPassword);
-
-  onProgress?.(45, 'Encrypting primary payload (Hidden Block)...');
-  const encPrimary = await aesEncrypt(primaryInner, primaryPassword);
-
-  onProgress?.(60, 'Calculating carrier capacity & allocating uniform entropy buffer...');
-  const { ctx, w, h } = await loadCanvas(carrierSrc, maxDimension > 0 ? maxDimension : undefined);
+  onProgress?.(10, 'Measuring carrier capacity...');
+  const { w, h } = await loadCanvas(carrierSrc, maxDimension > 0 ? maxDimension : undefined);
   const totalCap = calculateCapacity(w, h, density);
 
-  const minRequired = encDecoy.length + encPrimary.length + 32;
-  if (totalCap < minRequired) {
-    throw new Error(
-      `Carrier capacity (${totalCap.toLocaleString()} B) is insufficient for both decoy and hidden vaults (requires at least ${minRequired.toLocaleString()} B). Please use a larger image.`
-    );
+  const container = await sealDualVault(
+    primaryPayload, primaryPassword, decoyPayload, decoyPassword, totalCap, onProgress,
+  );
+
+  try {
+    onProgress?.(75, 'Embedding uniform-entropy container...');
+    // No password here: the container is already two layers of AES-GCM and has
+    // to reach the pixels byte for byte.
+    return await encodeImage(carrierSrc, container, undefined, density, maxDimension, onProgress);
+  } finally {
+    zeroFill(container);
   }
-
-  // Allocate full-capacity buffer and fill completely with CSPRNG pseudo-random noise
-  const fullStream = new Uint8Array(totalCap);
-  for (let i = 0; i < fullStream.length; i += 65536) {
-    const chunk = fullStream.subarray(i, Math.min(i + 65536, fullStream.length));
-    crypto.getRandomValues(chunk);
-  }
-
-  // Place Decoy (Outer Block) at Offset 0
-  fullStream.set(encDecoy, 0);
-
-  // Place Primary (Hidden Block) at Tail Offset: C_total - encPrimary.length
-  const tailOffset = totalCap - encPrimary.length;
-  fullStream.set(encPrimary, tailOffset);
-
-  onProgress?.(80, 'Injecting uniform entropy container into carrier...');
-  // Embed fullStream into carrier with 0 magic bytes and 0 plaintext length fields
-  return encodeImage(carrierSrc, fullStream, undefined, density, maxDimension, onProgress);
 }
 
 // ── Decode result types ───────────────────────────────────────────────────────
@@ -824,254 +999,156 @@ export type DecodeResult =
   | { type: 'vault';  files: EmbeddedFile[]; isDecoy?: boolean }
   | { type: 'binary'; data: Uint8Array; isDecoy?: boolean };
 
-// ── Helper: Trial Decryption on Buffer at Candidate Offsets ───────────────────
-async function tryTrialDecrypt(
-  buffer: Uint8Array,
-  password: string
-): Promise<{ result: DecodeResult; isDecoy: boolean } | null> {
-  if (buffer.length < 28) return null;
+/** Marks an error as "the bitstream parsed, the passphrase did not fit". */
+interface DecryptError extends Error { isDecryptFailure?: true }
 
-  // 1. Try decrypting from start of buffer (Outer / Decoy Block)
+function decryptFailure(message: string): DecryptError {
+  const err: DecryptError = new Error(message);
+  err.isDecryptFailure = true;
+  return err;
+}
+
+/**
+ * Unlock an extracted container with a passphrase, trying each layout the
+ * encoder can produce.
+ *
+ *  1. Single vault -- the whole buffer is one AES-GCM block whose plaintext is
+ *     the payload itself.
+ *  2. Dual vault -- two fixed halves, decoy in the first, primary in the
+ *     second, each with a [len:4][payload][padding] plaintext.
+ *
+ * Every branch is a real AES-GCM tag check, so a wrong passphrase cannot be
+ * mistaken for a right one, and the caller is told which half opened.
+ */
+export async function openContainer(raw: Uint8Array, password: string): Promise<DecodeResult> {
+  // 1. Single vault.
   try {
-    const pt = await aesDecrypt(buffer, password);
-    if (pt.length >= 4) {
-      const declaredLen = readU32LE(pt, 0);
-      if (declaredLen > 0 && declaredLen <= pt.length - 4) {
-        const payloadData = pt.subarray(4, 4 + declaredLen);
-        const unpacked = unpackPayload(payloadData);
-        return { result: unpacked, isDecoy: true };
-      }
-    }
-    const unpacked = unpackPayload(pt);
-    return { result: unpacked, isDecoy: false };
+    const pt = await aesDecrypt(raw, password);
+    return unpackPayload(pt);
   } catch {
-    // Offset 0 failed, proceed to tail scanning
+    // Not a single vault, or not this passphrase. Fall through.
   }
 
-  // 2. Scan tail regions for Tail-Aligned Hidden Block
-  // The hidden block starts with [Salt: 16B][IV: 12B] and ends at buffer.length
-  // Candidate sizes: between 60 bytes and buffer.length - 60 bytes
-  const maxScanLen = Math.min(buffer.length - 30, 20_000_000);
-  const minBlockLen = 44; // 16 Salt + 12 IV + 4 len prefix + 12 tag minimum
+  // 2. Dual vault, fixed halves.
+  const split = Math.floor(raw.length / 2);
+  if (split > DUAL_VAULT_BLOCK_OVERHEAD) {
+    const halves: { block: Uint8Array; isDecoy: boolean }[] = [
+      { block: raw.subarray(0, split), isDecoy: true },
+      { block: raw.subarray(split), isDecoy: false },
+    ];
 
-  // Quick check at direct tail slices if buffer is large
-  const candidateSteps = [
-    minBlockLen,
-    128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576, 2097152
-  ];
-
-  for (const step of candidateSteps) {
-    if (step < buffer.length - 30) {
-      const slice = buffer.subarray(buffer.length - step);
+    for (const { block, isDecoy } of halves) {
+      let inner: Uint8Array | null = null;
       try {
-        const pt = await aesDecrypt(slice, password);
-        if (pt.length >= 4) {
-          const declaredLen = readU32LE(pt, 0);
-          if (declaredLen > 0 && declaredLen <= pt.length - 4) {
-            const payloadData = pt.subarray(4, 4 + declaredLen);
-            const unpacked = unpackPayload(payloadData);
-            return { result: unpacked, isDecoy: false };
-          }
-        }
-        const unpacked = unpackPayload(pt);
-        return { result: unpacked, isDecoy: false };
+        inner = await aesDecrypt(block, password);
       } catch {
-        // continue
+        continue; // this passphrase does not open this half
+      }
+      try {
+        if (inner.length < 4) continue;
+        const declared = readU32LE(inner, 0);
+        if (declared > inner.length - 4) continue;
+        const result = unpackPayload(new Uint8Array(inner.subarray(4, 4 + declared)));
+        result.isDecoy = isDecoy;
+        return result;
+      } finally {
+        zeroFill(inner);
       }
     }
   }
 
-  return null;
+  throw decryptFailure('Incorrect passphrase, or this carrier holds no QuietSend payload.');
 }
 
-// ── Internal LSB-4 Decoder ────────────────────────────────────────────────────
-async function tryDecodeLsb4(
+/**
+ * Read a bitstream out of the pixel buffer at one density and interpret it.
+ *
+ * Replaces the separate tryDecodeLsb4 / tryDecodeLsb6 functions, which were
+ * line-for-line duplicates apart from the chunk width.
+ */
+async function tryDecodeDensity(
   px: Uint8ClampedArray,
   totalRgbChannels: number,
+  density: CapacityDensity,
   password?: string,
   onProgress?: ProgressCallback,
 ): Promise<DecodeResult> {
-  const headerNibbles = new Uint8Array(8);
-  let payloadNibbles: Uint8Array | null = null;
-  let rawBytes: Uint8Array | null = null;
-
-  try {
-    for (let ni = 0; ni < 8; ni++) {
-      const pxIdx = ((ni / 3) | 0) * 4 + (ni % 3);
-      if (pxIdx >= px.length) throw new Error('Invalid carrier stream');
-      headerNibbles[ni] = px[pxIdx] & 0x0f;
-    }
-
-    const lenBytes = nibblesToBytes(headerNibbles);
-    const len = readU32LE(lenBytes);
-    const maxBytes = Math.floor((totalRgbChannels - 8) / 2);
-    if (len === 0 || len > maxBytes) {
-      throw new Error('No valid LSB-4 payload detected');
-    }
-
-    const targetNibbles = len * 2;
-    payloadNibbles = new Uint8Array(targetNibbles);
-    for (let pni = 0; pni < targetNibbles; pni++) {
-      const k = 8 + pni;
-      const pxIdx = ((k / 3) | 0) * 4 + (k % 3);
-      if (pxIdx >= px.length) throw new Error('Stream truncated');
-      payloadNibbles[pni] = px[pxIdx] & 0x0f;
-    }
-
-    rawBytes = nibblesToBytes(payloadNibbles);
-
-    // Check for Legacy Honey-Vault (Backward Compatibility)
-    if (rawBytes.length >= 19 && constantTimeCompare(rawBytes.subarray(0, 11), GHOST_HONEY_SIG)) {
-      onProgress?.(50, 'Analyzing legacy Honey-Vault container...');
-      let off = 11;
-      const decoyLen = readU32LE(rawBytes, off); off += 4;
-      if (off + decoyLen <= rawBytes.length) {
-        const decoyCipher = rawBytes.subarray(off, off + decoyLen); off += decoyLen;
-        if (off + 4 <= rawBytes.length) {
-          const primaryLen = readU32LE(rawBytes, off); off += 4;
-          if (off + primaryLen <= rawBytes.length) {
-            const primaryCipher = rawBytes.subarray(off, off + primaryLen);
-            if (password && password.length > 0) {
-              try {
-                const pt = await aesDecrypt(decoyCipher, password);
-                const res = unpackPayload(pt);
-                res.isDecoy = true;
-                return res;
-              } catch {
-                // Decoy failed, try primary vault
-              }
-              const pt = await aesDecrypt(primaryCipher, password);
-              return unpackPayload(pt);
-            }
-          }
-        }
-      }
-    }
-
-    // Check for Asymmetric Public-Key Encrypted Payload
-    if (isAsymmetricPayload(rawBytes)) {
-      if (password && password.length > 0) {
-        onProgress?.(65, 'Decrypting with asymmetric Private Key...');
-        const pt = await decryptWithPrivateKey(rawBytes, password);
-        return unpackPayload(pt);
-      } else {
-        throw new Error('This payload is asymmetrically encrypted with a Public Key. Please unlock using your recipient Private Key.');
-      }
-    }
-
-    if (password && password.length > 0) {
-      onProgress?.(65, 'Authenticating and trial-decrypting payload...');
-      
-      // First try True Deniable Trial Decrypt
-      const deniableTrial = await tryTrialDecrypt(rawBytes, password);
-      if (deniableTrial) {
-        deniableTrial.result.isDecoy = deniableTrial.isDecoy;
-        return deniableTrial.result;
-      }
-
-      // Direct fallback
-      const data = await aesDecrypt(rawBytes, password);
-      return unpackPayload(data);
-    }
-
-    return unpackPayload(rawBytes);
-  } finally {
-    zeroFill(headerNibbles);
-    zeroFill(payloadNibbles);
-  }
-}
-
-// ── Internal LSB-6 Decoder ────────────────────────────────────────────────────
-async function tryDecodeLsb6(
-  px: Uint8ClampedArray,
-  totalRgbChannels: number,
-  password?: string,
-  onProgress?: ProgressCallback,
-): Promise<DecodeResult> {
-  const headerChunks = new Uint8Array(6);
+  const bits = BITS[density];
+  const mask = (1 << bits) - 1;
+  const headerChunkCount = Math.ceil(32 / bits);
+  const headerChunks = new Uint8Array(headerChunkCount);
   let allChunks: Uint8Array | null = null;
 
   try {
-    for (let ci = 0; ci < 6; ci++) {
+    for (let ci = 0; ci < headerChunkCount; ci++) {
       const pxIdx = ((ci / 3) | 0) * 4 + (ci % 3);
       if (pxIdx >= px.length) throw new Error('Invalid carrier stream');
-      headerChunks[ci] = px[pxIdx] & 0x3f;
+      headerChunks[ci] = px[pxIdx] & mask;
     }
 
-    const lenBytes = sixBitChunksToBytes(headerChunks, 4);
-    const len = readU32LE(lenBytes);
-    const maxBytes = Math.floor((totalRgbChannels * 6 - 32) / 8);
+    const len = readU32LE(chunksToBytes(headerChunks, 4, bits));
+    const maxBytes = Math.floor((totalRgbChannels * bits - 32) / 8);
     if (len === 0 || len > maxBytes) {
-      throw new Error('No valid LSB-6 payload detected');
+      throw new Error(`No valid ${density.toUpperCase()} payload detected`);
     }
 
-    const totalBits = (4 + len) * 8;
-    const totalChunks = Math.ceil(totalBits / 6);
+    const totalChunks = Math.ceil(((4 + len) * 8) / bits);
     allChunks = new Uint8Array(totalChunks);
     allChunks.set(headerChunks, 0);
-
-    for (let pci = 6; pci < totalChunks; pci++) {
-      const pxIdx = ((pci / 3) | 0) * 4 + (pci % 3);
+    for (let ci = headerChunkCount; ci < totalChunks; ci++) {
+      const pxIdx = ((ci / 3) | 0) * 4 + (ci % 3);
       if (pxIdx >= px.length) throw new Error('Stream truncated');
-      allChunks[pci] = px[pxIdx] & 0x3f;
+      allChunks[ci] = px[pxIdx] & mask;
     }
 
-    const streamBytes = sixBitChunksToBytes(allChunks, 4 + len);
-    const rawData = new Uint8Array(len);
-    rawData.set(streamBytes.subarray(4));
+    const streamBytes = chunksToBytes(allChunks, 4 + len, bits);
+    const rawData = new Uint8Array(streamBytes.subarray(4));
 
-    // Check for Honey-Vault (Plausible Deniability Dual-Payload)
+    // Legacy GHOST_HONEY dual container, written before the fixed-halves layout.
     if (rawData.length >= 19 && constantTimeCompare(rawData.subarray(0, 11), GHOST_HONEY_SIG)) {
-      onProgress?.(50, 'Analyzing Honey-Vault dual container...');
+      onProgress?.(50, 'Analyzing legacy Honey-Vault container...');
       let off = 11;
       const decoyLen = readU32LE(rawData, off); off += 4;
       if (off + decoyLen <= rawData.length) {
         const decoyCipher = rawData.subarray(off, off + decoyLen); off += decoyLen;
         if (off + 4 <= rawData.length) {
           const primaryLen = readU32LE(rawData, off); off += 4;
-          if (off + primaryLen <= rawData.length) {
+          if (off + primaryLen <= rawData.length && password && password.length > 0) {
             const primaryCipher = rawData.subarray(off, off + primaryLen);
-            if (password && password.length > 0) {
-              try {
-                const pt = await aesDecrypt(decoyCipher, password);
-                const res = unpackPayload(pt);
-                res.isDecoy = true;
-                return res;
-              } catch {
-                // Decoy failed, try primary vault
-              }
-              const pt = await aesDecrypt(primaryCipher, password);
-              return unpackPayload(pt);
+            try {
+              const pt = await aesDecrypt(decoyCipher, password);
+              const res = unpackPayload(pt);
+              res.isDecoy = true;
+              return res;
+            } catch {
+              // decoy did not open; try the primary block
+            }
+            try {
+              return unpackPayload(await aesDecrypt(primaryCipher, password));
+            } catch {
+              throw decryptFailure('Incorrect passphrase for this Honey-Vault container.');
             }
           }
         }
       }
     }
 
-    // Check for Asymmetric Public-Key Encrypted Payload
+    // Asymmetric envelope: the "password" is a PKCS#8 private key.
     if (isAsymmetricPayload(rawData)) {
-      if (password && password.length > 0) {
-        onProgress?.(65, 'Decrypting with asymmetric Private Key...');
-        const pt = await decryptWithPrivateKey(rawData, password);
-        return unpackPayload(pt);
-      } else {
-        throw new Error('This payload is asymmetrically encrypted with a Public Key. Please unlock using your recipient Private Key.');
+      if (!password || password.length === 0) {
+        throw new Error('This payload is encrypted to a public key. Unlock it with the matching private key from your Keyring.');
+      }
+      onProgress?.(65, 'Decrypting with asymmetric private key...');
+      try {
+        return unpackPayload(await decryptWithPrivateKey(rawData, password));
+      } catch (e) {
+        throw decryptFailure(e instanceof Error ? e.message : 'Private key could not open this payload.');
       }
     }
 
     if (password && password.length > 0) {
-      onProgress?.(65, 'Authenticating and trial-decrypting payload...');
-
-      // First try True Deniable Trial Decrypt
-      const deniableTrial = await tryTrialDecrypt(rawData, password);
-      if (deniableTrial) {
-        deniableTrial.result.isDecoy = deniableTrial.isDecoy;
-        return deniableTrial.result;
-      }
-
-      // Direct fallback
-      const data = await aesDecrypt(rawData, password);
-      return unpackPayload(data);
+      onProgress?.(65, 'Authenticating and decrypting payload...');
+      return await openContainer(rawData, password);
     }
 
     return unpackPayload(rawData);
@@ -1081,7 +1158,7 @@ async function tryDecodeLsb6(
   }
 }
 
-// ── Decode (main) auto-detecting LSB-6 and LSB-4 ───────────────────────────────
+// ── Decode (main) — probes each density in turn ───────────────────────────────
 export async function decodeImage(
   stegoSrc: string,
   password?: string,
@@ -1092,43 +1169,34 @@ export async function decodeImage(
   const px = ctx.getImageData(0, 0, w, h).data;
   const totalRgbChannels = Math.floor((px.length / 4) * 3);
 
-  onProgress?.(35, 'Detecting steganographic bitstream density (LSB-6 / LSB-4)...');
-  
-  let res6: DecodeResult | null = null;
-  let err6: any = null;
-  try {
-    res6 = await tryDecodeLsb6(px, totalRgbChannels, password, onProgress);
-    if (res6 && res6.type !== 'binary') {
-      onProgress?.(100, 'Payload extracted successfully!');
-      return res6;
+  onProgress?.(35, 'Detecting steganographic bitstream density...');
+
+  let firstBinary: DecodeResult | null = null;
+  let bestError: unknown = null;
+
+  for (const density of PROBE_ORDER) {
+    try {
+      const res = await tryDecodeDensity(px, totalRgbChannels, density, password, onProgress);
+      // A binary result means the bits came out but nothing recognised them, so
+      // keep probing: a later density may produce a real payload.
+      if (res.type !== 'binary') {
+        onProgress?.(100, 'Payload extracted successfully!');
+        return res;
+      }
+      firstBinary ??= res;
+    } catch (e) {
+      // A decrypt failure is far more informative than "no payload at this
+      // density", so let it win when we have to report something.
+      if (!bestError || (e as DecryptError)?.isDecryptFailure) bestError = e;
     }
-  } catch (e) {
-    err6 = e;
   }
 
-  let res4: DecodeResult | null = null;
-  let err4: any = null;
-  try {
-    res4 = await tryDecodeLsb4(px, totalRgbChannels, password, onProgress);
-    if (res4 && res4.type !== 'binary') {
-      onProgress?.(100, 'Payload extracted successfully!');
-      return res4;
-    }
-  } catch (e) {
-    err4 = e;
-  }
-
-  // If one produced binary, return whichever succeeded
-  if (res6) {
+  if (firstBinary) {
     onProgress?.(100, 'Payload extracted successfully!');
-    return res6;
-  }
-  if (res4) {
-    onProgress?.(100, 'Payload extracted successfully!');
-    return res4;
+    return firstBinary;
   }
 
-  throw err6 || err4 || new Error('No valid steganographic payload detected.');
+  throw bestError ?? new Error('No valid steganographic payload detected.');
 }
 
 // ── Unpack Payload with Fuzz-Proof Strict Bounds Checking ─────────────────────

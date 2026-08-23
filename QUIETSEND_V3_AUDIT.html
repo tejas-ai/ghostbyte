@@ -1,0 +1,576 @@
+<title>QuietSend V3 Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  --bg:#eeece6; --surface:#f7f6f2; --surface-2:#e5e2da;
+  --ink:#1c2124; --ink-2:#4a5257; --ink-3:#767f85;
+  --rule:#cfcbc1; --rule-soft:#dedad1;
+  --accent:#0d5f6b; --accent-soft:#0d5f6b1a;
+  --crit:#a02a24; --high:#b06216; --med:#7d6f18; --low:#4c5f70;
+  --crit-bg:#a02a2418; --high-bg:#b0621618; --med-bg:#7d6f1818; --low-bg:#4c5f7018;
+  --code-bg:#e7e4dc;
+  --sans:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --serif:'Newsreader',Georgia,'Times New Roman',serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181a; --surface:#1a1f22; --surface-2:#232a2d;
+    --ink:#e8e6e0; --ink-2:#a8b0b4; --ink-3:#79838a;
+    --rule:#2e363a; --rule-soft:#242b2f;
+    --accent:#4fb3c0; --accent-soft:#4fb3c01f;
+    --crit:#e3736a; --high:#e0a052; --med:#c4b74e; --low:#8fabbd;
+    --crit-bg:#e3736a1c; --high-bg:#e0a0521c; --med-bg:#c4b74e1c; --low-bg:#8fabbd1c;
+    --code-bg:#1014168c;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14181a; --surface:#1a1f22; --surface-2:#232a2d;
+  --ink:#e8e6e0; --ink-2:#a8b0b4; --ink-3:#79838a;
+  --rule:#2e363a; --rule-soft:#242b2f;
+  --accent:#4fb3c0; --accent-soft:#4fb3c01f;
+  --crit:#e3736a; --high:#e0a052; --med:#c4b74e; --low:#8fabbd;
+  --crit-bg:#e3736a1c; --high-bg:#e0a0521c; --med-bg:#c4b74e1c; --low-bg:#8fabbd1c;
+  --code-bg:#10141680;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px 96px}
+
+/* ── masthead ───────────────────────────────── */
+.mast{padding:56px 0 28px;border-bottom:2px solid var(--ink)}
+.kicker{
+  font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);font-weight:600;margin:0 0 14px
+}
+h1{
+  font-family:var(--serif);font-weight:600;font-size:clamp(2.4rem,6vw,4rem);
+  line-height:1.02;letter-spacing:-.02em;margin:0 0 16px;text-wrap:balance
+}
+.dek{font-size:1.075rem;color:var(--ink-2);max-width:63ch;margin:0}
+.meta{
+  display:flex;flex-wrap:wrap;gap:8px 28px;margin-top:24px;
+  font-family:var(--mono);font-size:12px;color:var(--ink-3)
+}
+.meta b{color:var(--ink-2);font-weight:500}
+
+/* ── verdict ────────────────────────────────── */
+.verdict{
+  margin:36px 0 0;padding:26px 28px;background:var(--surface);
+  border:1px solid var(--rule);border-left:3px solid var(--accent)
+}
+.verdict p{margin:0 0 12px;font-size:1.03rem;max-width:70ch}
+.verdict p:last-child{margin-bottom:0}
+
+.tally{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:28px 0 0}
+.tally div{background:var(--surface);padding:18px 20px}
+.tally .n{font-family:var(--serif);font-size:2.5rem;line-height:1;font-variant-numeric:tabular-nums;display:block}
+.tally .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-top:8px;display:block}
+.tally .c-crit .n{color:var(--crit)} .tally .c-high .n{color:var(--high)}
+.tally .c-med .n{color:var(--med)} .tally .c-low .n{color:var(--low)}
+
+/* ── layout ─────────────────────────────────── */
+.cols{display:grid;grid-template-columns:1fr;gap:48px;margin-top:56px}
+@media(min-width:1000px){.cols{grid-template-columns:210px 1fr;gap:56px}}
+nav.toc{align-self:start}
+@media(min-width:1000px){nav.toc{position:sticky;top:24px}}
+nav.toc h2{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin:0 0 12px;font-weight:600}
+nav.toc a{display:block;padding:5px 0;color:var(--ink-2);text-decoration:none;font-size:13.5px;border-bottom:1px solid var(--rule-soft)}
+nav.toc a:hover{color:var(--accent)}
+nav.toc a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+h2.sec{
+  font-family:var(--serif);font-size:1.85rem;font-weight:600;letter-spacing:-.015em;
+  margin:0 0 6px;padding-top:8px;text-wrap:balance
+}
+.sec-note{color:var(--ink-3);font-size:14px;margin:0 0 28px;max-width:62ch}
+section+section{margin-top:64px}
+
+/* ── findings ───────────────────────────────── */
+.find{border-top:1px solid var(--rule);padding:26px 0}
+.find:first-of-type{border-top:2px solid var(--ink)}
+.fhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;margin-bottom:6px}
+.num{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.chip{
+  font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 8px;white-space:nowrap
+}
+.chip.crit{background:var(--crit-bg);color:var(--crit)}
+.chip.high{background:var(--high-bg);color:var(--high)}
+.chip.med{background:var(--med-bg);color:var(--med)}
+.chip.low{background:var(--low-bg);color:var(--low)}
+.find h3{font-size:1.16rem;font-weight:600;margin:0;flex:1 1 100%;letter-spacing:-.01em;text-wrap:balance}
+@media(min-width:640px){.find h3{flex:1 1 auto}}
+.loc{font-family:var(--mono);font-size:11.5px;color:var(--accent);margin:2px 0 12px;word-break:break-word}
+.find p{margin:0 0 12px;max-width:72ch;color:var(--ink-2)}
+.find p:last-child{margin-bottom:0}
+.find strong{color:var(--ink);font-weight:600}
+.fix{
+  margin-top:14px;padding:13px 16px;background:var(--surface);border:1px solid var(--rule-soft);
+  font-size:14.5px;max-width:74ch
+}
+.fix b{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:5px}
+code{font-family:var(--mono);font-size:.87em;background:var(--code-bg);padding:1.5px 5px;border-radius:2px}
+pre{
+  font-family:var(--mono);font-size:12.5px;line-height:1.65;background:var(--surface);
+  border:1px solid var(--rule-soft);padding:14px 16px;overflow-x:auto;margin:12px 0
+}
+pre code{background:none;padding:0;font-size:inherit}
+.cmt{color:var(--ink-3)}
+
+/* ── tables ─────────────────────────────────── */
+.tw{overflow-x:auto;border:1px solid var(--rule);margin-top:8px}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:620px;background:var(--surface)}
+th,td{text-align:left;padding:11px 15px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+thead th{
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;background:var(--surface-2);border-bottom:1px solid var(--rule)
+}
+tbody tr:last-child td{border-bottom:none}
+td.m,th.m{font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+td.num-c{font-variant-numeric:tabular-nums;text-align:right}
+.ok{color:var(--accent);font-weight:600}
+.no{color:var(--crit);font-weight:600}
+.part{color:var(--high);font-weight:600}
+
+ol.steps{counter-reset:s;list-style:none;padding:0;margin:8px 0 0}
+ol.steps li{
+  counter-increment:s;position:relative;padding:14px 0 14px 46px;border-bottom:1px solid var(--rule-soft);max-width:74ch
+}
+ol.steps li:last-child{border-bottom:none}
+ol.steps li::before{
+  content:counter(s);position:absolute;left:0;top:14px;font-family:var(--mono);font-size:11px;
+  font-weight:600;color:var(--accent);border:1px solid var(--accent);width:24px;height:24px;
+  display:flex;align-items:center;justify-content:center
+}
+ol.steps b{display:block;margin-bottom:2px}
+ol.steps span{color:var(--ink-2);font-size:14.5px}
+
+footer{margin-top:72px;padding-top:24px;border-top:2px solid var(--ink);font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="kicker">Line-by-line review · 34 files · 10,062 lines</p>
+  <h1>QuietSend V3 Audit</h1>
+  <p class="dek">A full read of the source in <code>V3/</code> — every service, component, context, config and shipped asset — checked against what the README, PROJECT_REPORT and in-app copy claim the software does.</p>
+  <div class="meta">
+    <span><b>Version</b> 3.0.0-PRO</span>
+    <span><b>Stack</b> React 19 · TypeScript · Vite · Tailwind v4</span>
+    <span><b>Reviewed</b> 23 Aug 2026</span>
+    <span><b>Method</b> static read, no execution</span>
+  </div>
+</header>
+
+<div class="verdict">
+  <p><strong>The cryptography you actually use is sound.</strong> AES-GCM-256, PBKDF2 at 600k SHA-256 rounds, random 16-byte salt and 12-byte IV per message, ECDH P-256 for the keyring — the primitives are correct and correctly parameterised. The LSB-4 and LSB-6 pixel maths round-trips cleanly, the capacity formulas agree between encoder and decoder, and the payload parsers are genuinely bounds-checked.</p>
+  <p><strong>The problem is the distance between the code and the marketing.</strong> Several headline features do not work, and two of them cannot work — not "have a bug", but have no reachable code path at all. The docs assert verification that no test performs. For a tool aimed at journalists and researchers, that gap <em>is</em> the security issue: a user who trusts the Honey-Vault label is trusting something that does not exist.</p>
+  <p>Nothing here is unfixable, and most of it is a day or two of work. The list below is ordered by what I would fix first.</p>
+</div>
+
+<div class="tally">
+  <div class="c-crit"><span class="n">5</span><span class="l">Critical</span></div>
+  <div class="c-high"><span class="n">6</span><span class="l">High</span></div>
+  <div class="c-med"><span class="n">9</span><span class="l">Medium</span></div>
+  <div class="c-low"><span class="n">6</span><span class="l">Low / hygiene</span></div>
+</div>
+
+<div class="cols">
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <a href="#critical">Critical</a>
+  <a href="#high">High</a>
+  <a href="#medium">Medium</a>
+  <a href="#low">Low &amp; hygiene</a>
+  <a href="#claims">Claims vs. code</a>
+  <a href="#map">File-by-file map</a>
+  <a href="#order">Fix order</a>
+</nav>
+
+<main>
+
+<!-- ═══════════ CRITICAL ═══════════ -->
+<section id="critical">
+  <h2 class="sec">Critical</h2>
+  <p class="sec-note">Data loss, silent failure, or a security claim the code does not deliver.</p>
+
+  <article class="find">
+    <div class="fhead"><span class="num">C1</span><span class="chip crit">Critical</span>
+      <h3>The Honey-Vault has no encoder, and its format cannot be decoded</h3></div>
+    <p class="loc">services/stegaEngine.ts:755–812, 828–885 · components/Encoder.tsx:969 · components/Decoder.tsx:480, 597–610</p>
+    <p>Two separate failures stack here.</p>
+    <p><strong>First, nothing calls it.</strong> <code>encodeHoneyVault</code> is exported and never imported by any component. The Encoder has no decoy-payload field and no second passphrase input — its label just reads "Passphrase / Honey-Vault". The Decoder reads "Passphrase / Duress Code" and renders a <code>result.isDecoy</code> banner. So the UI advertises duress protection end-to-end while there is no path that produces a duress container.</p>
+    <p><strong>Second, the format is unrecoverable even if you wired it up.</strong> <code>encodeHoneyVault</code> fills the carrier with CSPRNG noise, places the encrypted decoy at offset 0 and the encrypted primary at <code>totalCap − encPrimary.length</code>. <code>tryTrialDecrypt</code> then tries to recover them like this:</p>
+<pre><code><span class="cmt">// step 1 — decoy at offset 0</span>
+const pt = await aesDecrypt(buffer, password);   <span class="cmt">// ct = bytes 28..totalCap</span>
+
+<span class="cmt">// step 2 — primary, guessed from a fixed table of tail lengths</span>
+const candidateSteps = [44, 128, 256, 512, 1024, 2048, ... 2097152];
+for (const step of candidateSteps) {
+  const slice = buffer.subarray(buffer.length - step);
+  ...
+}</code></pre>
+    <p>Step 1 hands GCM the decoy's salt and IV but a ciphertext running to the end of the buffer — hundreds of kilobytes of random padding included. The tag check fails, always. Step 2 only succeeds if <code>encPrimary.length</code> (which is <code>48 + payload bytes</code>) happens to be one of sixteen hardcoded values — so recovering a primary payload requires it to be exactly 80, 208, 464, 976 … bytes. In practice: never.</p>
+    <p><strong>And no test catches it.</strong> Test 7 in <code>cryptoSelfTest.ts</code> is named "Truly Deniable Uniform Entropy Envelope" but never calls <code>encodeHoneyVault</code> or <code>tryTrialDecrypt</code>. It hand-rolls a 2,048-byte buffer and then slices the ciphertext with <code>subarray(28, decoyBlock.length)</code> — using the exact length that the real decoder does not have. It validates an easier problem and reports the hard one as passing.</p>
+    <div class="fix"><b>Fix</b> Either build it properly or remove the labels. Building it properly means a length-free tail format the decoder can actually walk: encrypt each block, then store its length <em>inside</em> the authenticated plaintext and scan tail offsets by GCM tag trial at byte granularity over a bounded window (or fix both blocks at deterministic offsets derived from the passphrase). Until then, delete "Honey-Vault", "Duress Code" and the <code>isDecoy</code> banner from the UI, and drop the feature from the README.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">C2</span><span class="chip crit">Critical</span>
+      <h3>Private keys sit unencrypted in localStorage, and back up as plaintext JSON</h3></div>
+    <p class="loc">services/asymmetricCrypto.ts:104–105, 287–293 · components/KeyringModal.tsx:145–160</p>
+    <p><code>generateAsymmetricKeyPair</code> exports the private key with <code>exportKey('pkcs8', …)</code>, base64s it, and <code>saveStoredKeyring</code> writes it straight into <code>localStorage['quietsend_keyring_v1']</code>. Any XSS, any browser extension with host access, anyone who sits down at an unlocked machine, and any forensic image of the profile directory recovers every private key in one read. The backup button then writes the same material to <code>quietsend_keyring_backup_&lt;ts&gt;.json</code> with no encryption and no warning.</p>
+    <p>This is the sharpest contradiction in the project: the app is sold as a zero-knowledge enclave, and it stores long-term secrets in the least protected storage the browser offers.</p>
+    <p>Two smaller problems ride along. <code>saveStoredKeyring</code> swallows every exception, so a <code>QuotaExceededError</code> or storage-blocked context loses a freshly generated identity while the UI reports success. And the backup uses <code>URL.revokeObjectURL(url)</code> synchronously right after <code>a.click()</code> without appending the anchor to the DOM — which races the download in Firefox and Safari. Your own <code>downloadBlob</code> in stegaEngine gets both details right; this one doesn't.</p>
+    <div class="fix"><b>Fix</b> Wrap the private key in AES-GCM under a PBKDF2-derived vault passphrase before it touches storage, and require that passphrase to unlock the keyring for a session. Encrypt exports the same way. Surface storage failures instead of catching-and-ignoring. Reuse <code>downloadBlob</code> for the backup.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">C3</span><span class="chip crit">Critical</span>
+      <h3>The service worker pins every user to the first version they ever loaded</h3></div>
+    <p class="loc">public/sw.js:1–41 · index.html:47–52</p>
+    <p>The fetch handler is cache-first with no expiry and no network revalidation:</p>
+<pre><code>caches.match(event.request).then((cachedResponse) => {
+  if (cachedResponse) return cachedResponse;   <span class="cmt">// ← always wins, forever</span>
+  return fetch(event.request).then(...)
+});</code></pre>
+    <p><code>CACHE_NAME</code> is the hardcoded string <code>'quietsend-v3-airgap-v1'</code>, and the <code>activate</code> handler only deletes caches whose name differs from it. Since <code>sw.js</code> itself is a static file that never changes, the browser never re-runs <code>install</code>, the cache name never rotates, and <code>/</code> and <code>/index.html</code> are served from cache indefinitely. Your hashed asset filenames make this worse rather than better: the cached HTML keeps pointing at the old <code>index-BWPjm3j6.js</code>, which is also cached, so the whole stale app stays internally consistent and invisible.</p>
+    <p>Concretely: <strong>you cannot ship a security fix to anyone who has already visited the site.</strong></p>
+    <div class="fix"><b>Fix</b> Version <code>CACHE_NAME</code> from the build (inject the commit hash), and switch the HTML/navigation request to network-first with cache fallback while keeping cache-first for hashed <code>/assets/*</code>. Skip cross-origin and range requests entirely — right now the handler also intercepts video range requests and can serve a full 200 from cache, which breaks seeking on your demo clips.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">C4</span><span class="chip crit">Critical</span>
+      <h3>24-bit WAV carriers report success and embed nothing</h3></div>
+    <p class="loc">services/audioStegaEngine.ts:102–104, 175–211, 275–277</p>
+    <p><code>parseWavHeader</code> accepts 8, 16 and 24 bits per sample. <code>calculateAudioCapacity</code> then reports a real capacity for a 24-bit file, so the Encoder shows a healthy capacity meter and lets you proceed. But the write loop only handles two of the three cases:</p>
+<pre><code>if (header.bitsPerSample === 16)      sampleVal = outView.getInt16(...);
+else if (header.bitsPerSample === 8)  sampleVal = outView.getUint8(...);
+else continue;                        <span class="cmt">// 24-bit: skip, and never advance bitIdx</span></code></pre>
+    <p>Every sample is skipped, <code>bitIdx</code> never moves, and the function returns a freshly rebuilt "clean" WAV containing zero payload bits. No error is thrown. The decoder then falls through to <code>getUint8</code> for anything that isn't 16-bit, reads the wrong bytes, and reports "No valid QuietSend payload detected."</p>
+    <p>The user's experience: encode succeeds, they send the file, the recipient gets nothing. <strong>Silent data loss on a tool whose entire job is not losing the message.</strong></p>
+    <div class="fix"><b>Fix</b> Reject anything that isn't 16-bit (or 8-bit) in <code>parseWavHeader</code> with a clear message, and add real 24-bit support later if you want it. Also add a post-encode verification pass — decode your own output before handing it to the user — so this class of bug can never ship again.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">C5</span><span class="chip crit">Critical</span>
+      <h3>Encoding twice in a row fails: the cleanup effect revokes the carrier still in use</h3></div>
+    <p class="loc">components/Encoder.tsx:193–205 · components/Comparator.tsx:252–260</p>
+    <p>Both files register a blob-URL cleanup effect with the tracked objects in the dependency array:</p>
+<pre><code>useEffect(() => {
+  return () => {
+    if (result?.startsWith('blob:'))       URL.revokeObjectURL(result);
+    if (carrier?.src.startsWith('blob:'))  URL.revokeObjectURL(carrier.src);
+    ...
+  };
+}, [result, carrier, audioCarrier]);   <span class="cmt">// ← runs on every change, not just unmount</span></code></pre>
+    <p>React runs an effect's cleanup before <em>every</em> re-run, not only at unmount. So the moment <code>setResult(url)</code> fires at the end of an encode, the previous cleanup executes and revokes <code>carrier.src</code> — while the carrier is still loaded, still displayed, and still the input for the next encode.</p>
+    <p>The preview <code>&lt;img&gt;</code> keeps rendering because it already decoded, which hides the problem. But pressing <strong>Encode</strong> a second time calls <code>loadCanvas(carrier.src)</code> on a dead URL, every loader path fails, and the user gets <em>"Failed to process image buffer on canvas. Please select a valid PNG, JPG, WebP, or BMP image."</em> — pointing at an image that is visibly right there on screen.</p>
+    <p>Comparator has the identical bug with <code>[orig, mod, stats, bitPlaneUrl]</code>: running <strong>Analyze</strong> sets <code>stats</code>, which revokes both source images, so a second analysis fails the same way.</p>
+    <div class="fix"><b>Fix</b> Hold blob URLs in a ref and revoke the <em>previous</em> value explicitly when replacing it, with a separate <code>useEffect(…, [])</code> that revokes everything only on unmount. <code>loadCarrier</code> already revokes the old URL correctly — the effect is duplicating and mistiming that work.</div>
+  </article>
+</section>
+
+<!-- ═══════════ HIGH ═══════════ -->
+<section id="high">
+  <h2 class="sec">High</h2>
+  <p class="sec-note">Materially weakens security, blocks users, or breaks the build's safety net.</p>
+
+  <article class="find">
+    <div class="fhead"><span class="num">H1</span><span class="chip high">High</span>
+      <h3>The generated passphrase has ~21 bits of entropy and the meter reports ~147</h3></div>
+    <p class="loc">services/stegaEngine.ts:380–402 · components/Encoder.tsx:64–107</p>
+    <p><code>generatePassphrase</code> picks 4 words from a 38-word list. That is 38⁴ = 2,085,136 possibilities — <strong>20.99 bits</strong>. Meanwhile <code>calcEntropy</code> estimates from character-class pools, so <code>alpha-bravo-charlie-delta</code> (25 chars, lowercase + a symbol → pool 59) scores 25 × log₂(59) ≈ <strong>147 bits</strong> and the bar renders green with the label "Strong".</p>
+    <p>The gap is a factor of seven, and it points the wrong way — the meter is most confident exactly where the passphrase is weakest. Against PBKDF2 at 600k rounds a 2M-candidate space is a few minutes of offline GPU work per message. A user who clicks "generate" and trusts the green bar is materially less protected than one who invents their own phrase.</p>
+    <p>Secondary: <code>n % words.length</code> over <code>Uint32Array</code> introduces modulo bias, since 2³² isn't divisible by 38.</p>
+    <div class="fix"><b>Fix</b> Expand the list to 2,048+ words (EFF short list) and draw 6 — that's 66 bits — using rejection sampling to remove the bias. Then make the meter honest: when the passphrase came from the generator, display its <em>known</em> entropy rather than re-estimating it from characters, and for user-typed input use a dictionary-aware estimator (zxcvbn-style) rather than character pools.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">H2</span><span class="chip high">High</span>
+      <h3><code>cryptoSelfTest.ts</code> calls an undefined function, and the build never typechecks</h3></div>
+    <p class="loc">services/cryptoSelfTest.ts:6–14, 293, 300, 309 · package.json:8</p>
+    <p><code>unpackPayload</code> is used three times in Test 6 and is <strong>not in the import list</strong> — the file imports <code>generatePassphrase, calcSha256, crc32, buildZipArchive, parseZipArchive, zeroFill, constantTimeCompare</code> from stegaEngine, and none of them is <code>unpackPayload</code>. At runtime this throws <code>ReferenceError</code> on the first line of the try block, gets swallowed by the catch, and Test 6 — "Decoder Bounds Checking &amp; Fuzz Resistance" — reports <strong>failed</strong> every single time it is run.</p>
+    <p>The reason nobody noticed is the build script:</p>
+<pre><code>"build": "vite build"    <span class="cmt">// no tsc -b, no lint, no test</span></code></pre>
+    <p>Vite transpiles with esbuild, which strips types without checking them. <code>tsc --noEmit</code> would fail this file with TS2304. So PROJECT_REPORT's "compiles in 624ms with zero errors and zero warnings" is true and meaningless — the compiler that would find errors never runs. <code>generatePassphrase</code> and <code>calcSha256</code> are also imported and never used, which a linter would have flagged.</p>
+    <div class="fix"><b>Fix</b> Add the missing import. Change the script to <code>"build": "tsc --noEmit &amp;&amp; vite build"</code>, add ESLint, and add Vitest with a round-trip suite (encode→decode for LSB-4, LSB-6, WAV, GhostFile, GhostVault, asymmetric). Wire it to a GitHub Action so the gate is real.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">H3</span><span class="chip high">High</span>
+      <h3>A wrong password freezes the tab for 15–50 seconds</h3></div>
+    <p class="loc">services/stegaEngine.ts:410–447, 854–882, 962–975, 1062–1075</p>
+    <p>When the first decrypt attempt fails, <code>tryTrialDecrypt</code> walks up to sixteen tail-slice candidates. Each slice starts at a different byte of the payload, so each has a <em>different</em> 16-byte salt — which means <code>deriveKey</code>'s cache (keyed on <code>password:saltHex</code>) misses every time and runs a fresh <strong>PBKDF2 at 600,000 rounds</strong>.</p>
+    <p>On a 1 MB payload roughly 13 candidates are in range. <code>decodeImage</code> then does the whole thing twice — once for LSB-6, once for LSB-4 — so a single wrong password can cost 26 key derivations. At 0.5–2s each in a browser that's 15–50 seconds with no cancel button, and because PBKDF2 via SubtleCrypto isn't yielding to your worker, the tab is unresponsive throughout.</p>
+    <p>It's also an amplification primitive: one bad paste of a stego image costs the user's device a minute of CPU.</p>
+    <div class="fix"><b>Fix</b> Since C1 shows the tail scan cannot succeed anyway, delete it. If you rebuild deniable containers later, derive the candidate offsets from the passphrase so exactly one derivation is needed. Either way, run key derivation in a worker and give the decode button a cancel.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">H4</span><span class="chip high">High</span>
+      <h3>A worker failure hangs the encoder permanently</h3></div>
+    <p class="loc">services/workerClient.ts:101–104, 112–148</p>
+<pre><code>workerInstance.onerror = () => {
+  workerInstance = null;   <span class="cmt">// pendingRequests still holds an unresolved promise</span>
+};</code></pre>
+    <p><code>processPixelsWithWorker</code> returns a promise that is only settled by an <code>onmessage</code> with a matching id. If the worker throws — a module-worker unsupported in an older Safari, an OOM on a large carrier, a CSP refusal — <code>onerror</code> nulls the instance and returns. The pending promise is never resolved or rejected, <code>encodeImage</code> awaits forever, and the spinner runs until the user reloads. The <code>fallbackEncode</code> path exists but is only reachable if <code>getWorker()</code> returns null <em>before</em> the request, or if <code>postMessage</code> throws synchronously.</p>
+    <p>There's no timeout either, so a worker that simply never replies has the same effect.</p>
+    <div class="fix"><b>Fix</b> In <code>onerror</code>, reject or fall back every entry in <code>pendingRequests</code>, then clear it. Add a timeout that resolves via <code>fallbackEncode</code>. While you're in there: the encode path currently copies the pixel buffer twice (<code>buffer.slice</code> before transfer, then a fresh <code>Uint8ClampedArray</code> on return) — on a 4000×3000 carrier that's ~96 MB of avoidable allocation on mobile.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">H5</span><span class="chip high">High</span>
+      <h3>Keyboard users cannot use the app at all</h3></div>
+    <p class="loc">All ten component files</p>
+    <p>Across 80 buttons and 11 inputs there are <strong>zero</strong> <code>aria-label</code> attributes, <strong>zero</strong> <code>role</code> attributes, and <strong>zero</strong> <code>htmlFor</code>/<code>id</code> label associations. Concretely:</p>
+    <div class="tw"><table>
+      <thead><tr><th>Gap</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td>Dropzones are <code>&lt;div onClick&gt;</code> with the real <code>&lt;input type="file"&gt;</code> set to <code>className="hidden"</code></td><td>Neither is focusable — <strong>file upload is impossible without a mouse</strong></td></tr>
+        <tr><td>Icon-only buttons (close ✕, show/hide password, copy hash)</td><td>Announced as "button" with no name</td></tr>
+        <tr><td>Passphrase field has a styled <code>&lt;span&gt;</code>, not a <code>&lt;label&gt;</code></td><td>Screen reader announces an unlabelled text box</td></tr>
+        <tr><td>KeyringModal &amp; MessengerGuideModal: no <code>role="dialog"</code>, no <code>aria-modal</code>, no focus trap, no Escape, no backdrop click, no scroll lock</td><td>Focus stays behind the overlay; background scrolls</td></tr>
+        <tr><td>Progress/status/error regions have no <code>aria-live</code></td><td>No feedback during a 30-second encode</td></tr>
+        <tr><td><code>&lt;nav&gt;</code> tabs have no <code>aria-current</code>, no <code>aria-label</code></td><td>Active tab is conveyed by gradient only</td></tr>
+      </tbody>
+    </table></div>
+    <div class="fix"><b>Fix</b> Highest leverage first: make the dropzone a real <code>&lt;label&gt;</code> wrapping a visually-hidden (not <code>display:none</code>) file input — that single change restores upload for keyboard and screen-reader users. Then add <code>aria-label</code> to every icon button, wire labels to inputs, and give both modals dialog semantics with focus trap and Escape. This also matters commercially: any public-sector, NGO or education buyer will have an accessibility requirement.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">H6</span><span class="chip high">High</span>
+      <h3>244 MB of video ships with every deploy</h3></div>
+    <p class="loc">public/videos/ · public/*.png</p>
+    <p>Everything in <code>public/</code> is copied verbatim into <code>dist/</code>. That currently means:</p>
+    <div class="tw"><table>
+      <thead><tr><th>Asset</th><th class="num-c">Size</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td class="m">videos/pt3.mp4</td><td class="num-c m">61.6 MB</td><td></td></tr>
+        <tr><td class="m">videos/pt2.mp4</td><td class="num-c m">41.0 MB</td><td></td></tr>
+        <tr><td class="m">videos/pt4.mp4</td><td class="num-c m">41.5 MB</td><td></td></tr>
+        <tr><td class="m">videos/pt5.mp4</td><td class="num-c m">37.1 MB</td><td></td></tr>
+        <tr><td class="m">videos/pt1.mp4</td><td class="num-c m">35.8 MB</td><td></td></tr>
+        <tr><td class="m">videos/pt.mp4 + ppt6.mp4</td><td class="num-c m">27.5 MB</td><td><span class="no">byte-identical duplicates</span></td></tr>
+        <tr><td class="m">videos/pt6.mp4</td><td class="num-c m">0 B</td><td><span class="no">empty file</span></td></tr>
+        <tr><td class="m">logo{,_trimmed,_transparent,_flood,_aggressive}.png</td><td class="num-c m">1.56 MB</td><td>five variants, one is used</td></tr>
+        <tr><td class="m">favicon.ico</td><td class="num-c m">99.8 KB</td><td>should be ~2 KB</td></tr>
+      </tbody>
+    </table></div>
+    <p>The 297 KB <code>logo.png</code> serves triple duty as favicon, PWA icon and OG image. The Settings video player uses <code>&lt;video autoPlay controls&gt;</code> with no <code>preload="none"</code> and no poster, so opening a tutorial starts pulling a 40–60 MB file immediately. This will breach the free tier of Vercel, Netlify and GitHub Pages and makes the site slow for exactly the low-bandwidth users a privacy tool should serve.</p>
+    <div class="fix"><b>Fix</b> Move the videos off the bundle — YouTube/Vimeo unlisted, or an object store — and lazy-embed. Delete <code>pt6.mp4</code> and one of the duplicate pair, and the four unused logo variants. Generate a proper multi-size favicon and a 1200×630 OG image separate from the app icon.</div>
+  </article>
+</section>
+
+<!-- ═══════════ MEDIUM ═══════════ -->
+<section id="medium">
+  <h2 class="sec">Medium</h2>
+  <p class="sec-note">Real problems that are not yet hurting users, plus places the code disagrees with itself.</p>
+
+  <article class="find">
+    <div class="fhead"><span class="num">M1</span><span class="chip med">Medium</span>
+      <h3>"Memory sanitization" keeps every password alive for the whole session</h3></div>
+    <p class="loc">services/stegaEngine.ts:410–447, 139–148</p>
+    <p><code>keyCache</code> is a module-level <code>Map</code> keyed on the literal string <code>`${password}:${saltHex}`</code>. Every passphrase the user types stays reachable from a live map until 20 entries accumulate or the tab closes. Meanwhile <code>zeroFill(pwBytes)</code> wipes a copy that was already consumed by <code>importKey</code>, and the original JavaScript string — immutable, possibly interned, freely copied by the GC — is untouched.</p>
+    <p>The self-test cheerfully reports "heap zeroization confirmed active". Zero-filling typed arrays in JS is a reasonable gesture, but it is not the guarantee the PROJECT_REPORT's "Side-Channel Memory Sanitization" pillar implies, and the cache actively works against it.</p>
+    <div class="fix"><b>Fix</b> Key the cache on a SHA-256 of the passphrase rather than the passphrase itself, cap it at 2–3 entries, and clear it on tab blur. Then soften the claim in the docs to what JS can actually offer — best-effort buffer wiping, no guarantee against memory forensics. You already added JS memory-model caveats to the deep-analysis doc; make the README match.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">M2</span><span class="chip med">Medium</span>
+      <h3>The displayed SHA-256 is a hash of the plaintext</h3></div>
+    <p class="loc">components/Encoder.tsx:482–483, 556–562</p>
+    <p><code>calcSha256(rawPayload)</code> runs <em>before</em> encryption, and the result is shown in the result panel with a copy button. If a user shares that hash so the recipient can verify integrity, they publish a commitment to the plaintext — anyone who can guess the message can confirm it, which is exactly the property a deniability-focused tool should not leak. It also undercuts C1's whole premise.</p>
+    <div class="fix"><b>Fix</b> Hash the ciphertext (or the final stego file) for the integrity display, and if you want a plaintext digest keep it local and label it clearly as "do not share".</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">M3</span><span class="chip med">Medium</span>
+      <h3>The feedback form tells the user it was received, then throws it away</h3></div>
+    <p class="loc">components/Settings.tsx:89–94</p>
+<pre><code>const handleFeedbackSubmit = () => {
+  soundFx.playSuccess();
+  alert("Thank you for your feedback! Your message has been received.");
+  setFeedbackText('');   <span class="cmt">// nothing is sent anywhere</span>
+};</code></pre>
+    <p>It is the only feedback channel in the app — there is no mailto, no external link anywhere in the components. The placeholder invites "security findings", which makes this the worst possible thing to silently discard. It also uses a native <code>alert()</code>, hardcoded in English, inside a five-language app.</p>
+    <div class="fix"><b>Fix</b> Point it at a Formspree/Web3Forms endpoint or a <code>mailto:</code>, or replace it with a GitHub Issues link. If you keep the form, replace <code>alert</code>/<code>confirm</code> (also used in KeyringModal:102, 105) with in-app dialogs that respect the language setting.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">M4</span><span class="chip med">Medium</span>
+      <h3>"Air-gapped" — while loading fonts from Google on every page view</h3></div>
+    <p class="loc">index.css:1 · components/Navigation.tsx:157–160</p>
+    <p>Line 1 of the stylesheet is <code>@import url('https://fonts.googleapis.com/css2?…')</code>, and the CSP explicitly permits <code>fonts.googleapis.com</code> and <code>fonts.gstatic.com</code>. Every visit sends the user's IP, User-Agent and referring context to Google before the app renders. Meanwhile the header shows a hardcoded green "Air-Gapped" badge that reflects no runtime state at all.</p>
+    <p>For most apps this is unremarkable. For one whose value proposition is that nothing leaves the device, it is the claim collapsing on the first line of CSS — and a render-blocking third-party request on the critical path.</p>
+    <div class="fix"><b>Fix</b> Self-host Plus Jakarta Sans and JetBrains Mono (both OFL) as <code>woff2</code> in <code>public/fonts/</code>, drop the Google entries from the CSP, and either make the badge reflect something real or change it to describe processing rather than networking ("Processed on this device").</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">M5</span><span class="chip med">Medium</span>
+      <h3>The CSP permits <code>unsafe-eval</code> and the app can be framed</h3></div>
+    <p class="loc">index.html:19</p>
+    <p><code>script-src 'self' 'unsafe-inline' 'unsafe-eval'</code> gives away most of what a CSP is for — and it matters more here than usual, because C2 puts private keys in localStorage where injected script can read them. There is also no <code>frame-ancestors</code> and no <code>X-Frame-Options</code>, so a malicious page can iframe QuietSend and overlay its own passphrase field. <code>frame-ancestors</code> cannot be set from a <code>&lt;meta&gt;</code> tag at all — it needs a real response header.</p>
+    <div class="fix"><b>Fix</b> Move the CSP to response headers (<code>vercel.json</code> / <code>_headers</code> / nginx), drop <code>unsafe-eval</code>, add <code>frame-ancestors 'none'</code>, <code>form-action 'none'</code>, and HSTS. Work toward removing <code>unsafe-inline</code> with hashes once the Figma plugin's injected tags are gone.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">M6</span><span class="chip med">Medium</span>
+      <h3>Five languages, but roughly a quarter of the interface is translated</h3></div>
+    <p class="loc">contexts/LanguageContext.tsx (1,216 lines) · all components</p>
+    <p>The dictionary holds 175 keys × 5 languages = <strong>875 strings, ~57 KB</strong> in the main bundle, no code-splitting. Only about 40 distinct keys are referenced by any component — so roughly <strong>77% of the translation payload is shipped to every user and never rendered</strong>. Meanwhile there are <strong>109 hardcoded English strings</strong> in JSX that have no key at all: "Stego Carrier Ingestion", "30-Second Interactive Test Drive", "Passphrase / Duress Code", every error message, every <code>alert()</code>. Nearly all remaining lookups are written <code>{t.x.y || 'English fallback'}</code>, so English is the real source of truth.</p>
+    <p>Selecting Kannada also never updates <code>document.documentElement.lang</code>, which stays <code>"en"</code> — wrong for screen readers, hyphenation and search engines.</p>
+    <div class="fix"><b>Fix</b> Decide which this is. If i18n is a real feature, extract the 109 hardcoded strings, split dictionaries into per-language chunks loaded on demand, and set <code>lang</code> on switch. If it was a coursework checkbox, cut to English + one well-translated language and stop shipping 57 KB of unused text.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">M7</span><span class="chip med">Medium</span>
+      <h3>Chunk splitting doesn't do what it looks like it does</h3></div>
+    <p class="loc">vite.config.ts:19–27 · package.json:16</p>
+<pre><code>if (id.includes('react') || id.includes('react-dom')) return 'vendor-react';
+if (id.includes('lucide-react'))  return 'vendor-icons';   <span class="cmt">// unreachable</span>
+if (id.includes('framer-motion')) return 'vendor-motion';  <span class="cmt">// unreachable</span></code></pre>
+    <p><code>'lucide-react'</code> contains <code>'react'</code>, so the first branch swallows it and <code>vendor-icons</code> is never emitted — <code>dist/assets/</code> confirms it: <code>vendor-react</code>, <code>vendor-core</code>, <code>vendor-utif</code>, no icons chunk. And <code>framer-motion</code> is <strong>imported nowhere in the entire codebase</strong> — it's a declared dependency that only exists in <code>node_modules</code> and the lockfile.</p>
+    <div class="fix"><b>Fix</b> Match on <code>/node_modules\/react(-dom)?\//</code> rather than substring, order the icon branch first, and <code>npm uninstall framer-motion</code>. Also consider lazy-loading Comparator and Settings — they're 508 and 1,215 lines and neither is on the first-paint path.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">M8</span><span class="chip med">Medium</span>
+      <h3>The build depends on a Figma scaffold that injects duplicate meta tags</h3></div>
+    <p class="loc">vite.config.ts:5, 84–224 · .figma/make/site.json · dist/index.html</p>
+    <p>290 of 342 lines of <code>vite.config.ts</code> are Figma Make scaffolding, and line 5 hard-imports <code>./.figma/make/site.json</code> — delete that directory and the build stops. The plugin then re-injects tags that <code>index.html</code> already declares, so the shipped HTML carries <strong>two</strong> <code>meta[name=description]</code>, two <code>og:title</code>, two <code>og:image</code>, two <code>twitter:image</code>, and a second <code>&lt;link rel="icon" href="/logo.png"&gt;</code> that overrides your cache-busted <code>?v=4</code>. Crawlers pick one description unpredictably.</p>
+    <p>The same plugin contains an unescaped Google Analytics injection path keyed off <code>site.json</code>. It's empty today, but a "zero-tracking" app that can silently grow GA from a config file is a landmine worth removing.</p>
+    <div class="fix"><b>Fix</b> Delete the Figma plugins and <code>.figma/</code>, keep <code>base</code>, <code>build</code>, <code>resolve</code>, <code>server</code>. That takes the config from 342 lines to about 40 and removes the duplicate-meta bug in one move.</div>
+  </article>
+
+  <article class="find">
+    <div class="fhead"><span class="num">M9</span><span class="chip med">Medium</span>
+      <h3>The asymmetric envelope has no sender authentication, and no HKDF</h3></div>
+    <p class="loc">services/asymmetricCrypto.ts:1–4, 33–37, 157–207</p>
+    <p>Three things the docs get wrong about this file:</p>
+    <p><strong>No HKDF.</strong> The header comment, README and PROJECT_REPORT all specify "ECDH P-256 + HKDF-SHA-256". The code calls <code>deriveKey({name:'ECDH', public}, priv, {name:'AES-GCM', length:256})</code>, which per the WebCrypto spec uses the raw shared-secret X coordinate as the AES key. No extract-and-expand, no context binding, no salt.</p>
+    <p><strong>No sender authenticity.</strong> Ephemeral-static ECDH gives confidentiality only. Anyone holding your public key can craft a payload that decrypts cleanly and appears to come from anyone. PGP — the comparison the code invokes — signs. This is a real gap for a tool whose users receive files from untrusted channels.</p>
+    <p><strong>64-bit fingerprints.</strong> <code>calcKeyFingerprint</code> truncates SHA-256 to 8 bytes. For out-of-band verification against an active MITM that's roughly 2³² work to collide — too short for the job it's doing.</p>
+    <div class="fix"><b>Fix</b> Run the shared secret through <code>deriveBits</code> → HKDF-SHA-256 with a context string, or correct the docs. Add an Ed25519 (or ECDSA P-256) signature over the ciphertext and show a verified-sender badge on decode. Widen fingerprints to 16 bytes and display them in grouped word or hex form.</div>
+  </article>
+</section>
+
+<!-- ═══════════ LOW ═══════════ -->
+<section id="low">
+  <h2 class="sec">Low &amp; hygiene</h2>
+  <p class="sec-note">Small, but they accumulate into the impression a reviewer forms of the codebase.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>Issue</th><th class="m">Where</th></tr></thead>
+    <tbody>
+      <tr><td class="m">L1</td><td><strong>Three identical entry points.</strong> <code>index.tsx</code>, <code>main.tsx</code> and <code>src/main.tsx</code> all bootstrap the same app; only <code>index.tsx</code> is referenced. Delete two.</td><td class="m">index.tsx, main.tsx,<br>src/main.tsx</td></tr>
+      <tr><td class="m">L2</td><td><strong>Dead modules.</strong> <code>ThemeContext</code> is never mounted (App wraps only <code>LanguageProvider</code>) and the app is hardcoded dark. <code>useDeviceDetection</code> is imported by nothing. <code>types.ts</code> exports a <code>DecodeResult</code> that diverges from stegaEngine's and is unused.</td><td class="m">contexts/ThemeContext.tsx,<br>hooks/, types.ts</td></tr>
+      <tr><td class="m">L3</td><td><strong>Nine dead props.</strong> Navigation declares <code>activeTab, setActiveTab, hackerClicks, onLogoClick, hackerMode</code>; Settings declares <code>hackerMode, onToggleHackerMode, toggleHackerMode, onToggleHacker</code> — none destructured. The Hacker Mode easter egg is gone but its wiring isn't.</td><td class="m">Navigation.tsx:7–17,<br>Settings.tsx:32–38</td></tr>
+      <tr><td class="m">L4</td><td><strong>Frozen state.</strong> <code>const [maxDimension] = useState&lt;number&gt;(0)</code> has no setter, so carrier downscaling can never be enabled and <code>getScaledDimensions</code> is always a no-op.</td><td class="m">Encoder.tsx:143</td></tr>
+      <tr><td class="m">L5</td><td><strong>The AES wire format is implemented five times</strong> — <code>aesEncrypt</code>/<code>aesDecrypt</code> in stegaEngine, again inline in Encoder for audio, again inline in Decoder for audio, and again in two self-tests, each with its own iteration count (600k / 600k / 100k / 10k). Any change to the format has to be made in five places.</td><td class="m">stegaEngine, Encoder:497–513,<br>Decoder:278–293, cryptoSelfTest</td></tr>
+      <tr><td class="m">L6</td><td><strong>Small correctness nits.</strong> RIFF chunk walk ignores word-alignment padding (<code>pos += 8 + chunkSize</code> misses odd-sized LIST/INFO chunks); the capacity meter under-reports by 44 bytes because salt+IV+tag aren't counted, so a payload at 100% fails at encode; <code>parseZipArchive</code> never checks the compression method and returns deflated bytes as-is; <code>constantTimeCompare</code> is used only on public magic-byte constants, where it buys nothing; <code>copyHash</code> doesn't catch <code>clipboard.writeText</code> rejection on non-secure origins; <code>loadSecretFiles</code> has no <code>reader.onerror</code> and no size cap; <code>soundFx</code> reads localStorage at module scope with no try/catch, which throws in a sandboxed iframe and takes the whole app down.</td><td class="m">audioStegaEngine:66–91,<br>Encoder:398–409, 556,<br>stegaEngine:302–315,<br>soundFx.ts:7–10</td></tr>
+      <tr><td class="m">L7</td><td><strong>Housekeeping.</strong> No <code>LICENSE</code> file although the README declares MIT. <code>metadata.json</code> still names the project "StegaVault". No <code>robots.txt</code>, no <code>sitemap.xml</code>, no canonical URL, no <code>og:url</code>. The PWA manifest ships one 512px icon marked <code>"purpose": "any maskable"</code> — a maskable icon needs safe-zone padding, and there's no 192px entry, so install prompts likely won't fire. No routing at all, so tabs can't be linked, bookmarked, or indexed separately — a real constraint on the growth plan.</td><td class="m">repo root, public/manifest.webmanifest</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ═══════════ CLAIMS ═══════════ -->
+<section id="claims">
+  <h2 class="sec">Claims vs. code</h2>
+  <p class="sec-note">Every row was checked against the source. This table is the most important thing in the report — fix the code or fix the sentence, but don't ship both.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th style="width:31%">Documented claim</th><th style="width:11%">Status</th><th>What the code does</th></tr></thead>
+    <tbody>
+      <tr><td>AES-GCM-256, PBKDF2 600k rounds</td><td><span class="ok">True</span></td><td>Correct primitives, correct parameters, fresh salt and IV per message.</td></tr>
+      <tr><td>LSB-4 / LSB-6 image engine</td><td><span class="ok">True</span></td><td>Encoder and decoder agree; capacity formulas match; round-trips cleanly.</td></tr>
+      <tr><td>Zero-dependency PKZIP + CRC-32</td><td><span class="ok">True</span></td><td>Valid stored-method archive; correct table-driven CRC.</td></tr>
+      <tr><td>Bounds-checked / fuzz-resistant parsers</td><td><span class="ok">True</span></td><td><code>unpackPayload</code> genuinely clamps file counts, name lengths and offsets.</td></tr>
+      <tr><td>Plausible-deniability Honey-Vault</td><td><span class="no">False</span></td><td>No encoder is reachable, and the format can't be decoded. <strong>C1</strong></td></tr>
+      <tr><td>NIST CAVP-style vector verification</td><td><span class="no">False</span></td><td>No NIST vectors exist. Tests are self-round-trips at 100k/10k rounds, not the 600k the app uses. Test 6 always fails on an undefined symbol. <strong>H2</strong></td></tr>
+      <tr><td>Boot-time self-test suite</td><td><span class="no">False</span></td><td>Only runs on demand, from a button inside KeyringModal.</td></tr>
+      <tr><td>ECDH P-256 + HKDF-SHA-256</td><td><span class="no">False</span></td><td>No HKDF anywhere; raw ECDH shared secret becomes the AES key. <strong>M9</strong></td></tr>
+      <tr><td>"Zero magic bytes, indistinguishable from sensor noise"</td><td><span class="no">False</span></td><td><code>GHOST_VAULT</code>, <code>GHOST_FILE</code> and <code>GHOST_ASYM1</code> sit in cleartext in the normal path; LSB-6 rewrites six of eight bits per channel, which any chi-square or histogram test flags immediately.</td></tr>
+      <tr><td>"Builds with zero errors and zero warnings"</td><td><span class="no">Hollow</span></td><td><code>vite build</code> never typechecks. <code>tsc --noEmit</code> fails today. <strong>H2</strong></td></tr>
+      <tr><td>SNR &gt; 50 dB, PSNR &gt; 60 dB for audio</td><td><span class="part">Unverified</span></td><td><code>analyzeAudioAcoustics</code> is exported and called by nothing — the figures are never measured.</td></tr>
+      <tr><td>Air-gapped execution</td><td><span class="part">Partly</span></td><td>All crypto is local, but every page load fetches Google Fonts. <strong>M4</strong></td></tr>
+      <tr><td>Side-channel memory sanitization</td><td><span class="part">Partly</span></td><td>Typed arrays are wiped; passphrase strings persist in <code>keyCache</code> all session. <strong>M1</strong></td></tr>
+      <tr><td>60 FPS during 50 MB+ encodes</td><td><span class="part">Partly</span></td><td>Pixel work is off-thread, but PBKDF2 isn't, the buffer is copied twice, and a worker error hangs forever. <strong>H4</strong></td></tr>
+      <tr><td>Multilingual: 5 languages</td><td><span class="part">Partly</span></td><td>~40 keys wired; 109 hardcoded English strings; <code>lang</code> never updates. <strong>M6</strong></td></tr>
+      <tr><td>16-bit PCM WAV steganography</td><td><span class="part">Partly</span></td><td>16-bit works. 24-bit is accepted and silently drops the payload. <strong>C4</strong></td></tr>
+      <tr><td>MIT License</td><td><span class="no">Missing</span></td><td>No <code>LICENSE</code> file in the repository.</td></tr>
+      <tr><td>"Score: 10.0 / 10"</td><td><span class="no">Remove</span></td><td>Self-assigned, unsourced, and it makes every other claim in the document read as marketing.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ═══════════ MAP ═══════════ -->
+<section id="map">
+  <h2 class="sec">File-by-file map</h2>
+  <p class="sec-note">Everything read, with the headline note for each. Third-party <code>node_modules</code> and built <code>dist/</code> output excluded.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th class="m">File</th><th class="num-c">Lines</th><th>Assessment</th></tr></thead>
+    <tbody>
+      <tr><td class="m">services/stegaEngine.ts</td><td class="num-c m">1,296</td><td>The core, and mostly good. LSB maths, capacity, ZIP, parsers all correct. Carries C1, H1, H3, M1, M2. Doing far too many jobs for one file — split into crypto / lsb / container / io.</td></tr>
+      <tr><td class="m">components/Encoder.tsx</td><td class="num-c m">1,249</td><td>C5 and M2 live here. Inline AES duplication (L5), dead <code>maxDimension</code> (L4), no <code>reader.onerror</code>. Needs splitting into carrier / payload / crypto panels.</td></tr>
+      <tr><td class="m">contexts/LanguageContext.tsx</td><td class="num-c m">1,216</td><td>875 strings, ~77% never rendered. Context value rebuilt every render without <code>useMemo</code>. <strong>M6</strong></td></tr>
+      <tr><td class="m">components/Decoder.tsx</td><td class="num-c m">750</td><td>Passes the raw PKCS#8 private key in as the "password" parameter, so keyring mode can't decode symmetric payloads. Fifth copy of the AES wire format.</td></tr>
+      <tr><td class="m">components/settingsContent.tsx</td><td class="num-c m">659</td><td>Static localized copy for blog/legal/videos. Fine, but it's 57 KB in the main bundle — code-split it.</td></tr>
+      <tr><td class="m">components/Settings.tsx</td><td class="num-c m">556</td><td><strong>M3</strong> (fake feedback form). Four dead hacker-mode props. Video player has no <code>preload="none"</code>.</td></tr>
+      <tr><td class="m">components/KeyringModal.tsx</td><td class="num-c m">527</td><td>Plaintext key export (<strong>C2</strong>), no dialog semantics, native <code>alert</code>/<code>confirm</code>, download race.</td></tr>
+      <tr><td class="m">components/Comparator.tsx</td><td class="num-c m">508</td><td><strong>C5</strong> again. Solid forensics maths — MSE/PSNR and bit-plane extraction are correct. Split handle has no keyboard control.</td></tr>
+      <tr><td class="m">services/cryptoSelfTest.ts</td><td class="num-c m">420</td><td><strong>H2</strong>. Test 6 always fails; Test 7 validates a different problem than the one it names.</td></tr>
+      <tr><td class="m">services/audioStegaEngine.ts</td><td class="num-c m">379</td><td><strong>C4</strong>. RIFF walk ignores word alignment. <code>analyzeAudioAcoustics</code> is dead code.</td></tr>
+      <tr><td class="m">vite.config.ts</td><td class="num-c m">342</td><td>~85% Figma scaffolding. Duplicate meta injection, broken <code>manualChunks</code>. <strong>M7, M8</strong></td></tr>
+      <tr><td class="m">index.css</td><td class="num-c m">357</td><td>Coherent glass design system. Google Fonts import on line 1 (<strong>M4</strong>). No <code>prefers-reduced-motion</code> guard on the animations.</td></tr>
+      <tr><td class="m">services/asymmetricCrypto.ts</td><td class="num-c m">330</td><td><strong>C2, M9</strong>. The ECDH itself is implemented correctly; the storage and the claims around it are the problem.</td></tr>
+      <tr><td class="m">components/MessengerGuideModal.tsx</td><td class="num-c m">265</td><td>Content is genuinely useful. No dialog semantics, all copy hardcoded English.</td></tr>
+      <tr><td class="m">components/EnclaveSidebar.tsx</td><td class="num-c m">188</td><td>Static telemetry — nothing it displays reflects runtime state.</td></tr>
+      <tr><td class="m">services/soundFx.ts</td><td class="num-c m">169</td><td>Nice zero-dependency synth. Module-scope localStorage read can throw at import time (<strong>L6</strong>). Defaults to on.</td></tr>
+      <tr><td class="m">components/Navigation.tsx</td><td class="num-c m">165</td><td>Five dead props, no <code>aria-current</code>, hardcoded "Air-Gapped" badge.</td></tr>
+      <tr><td class="m">components/HomeOverview.tsx</td><td class="num-c m">159</td><td>Not rendered — App has no <code>home</code> tab case. Dead component.</td></tr>
+      <tr><td class="m">services/workerClient.ts</td><td class="num-c m">115</td><td><strong>H4</strong>. Third copy of the bit-packing helpers.</td></tr>
+      <tr><td class="m">services/stegoWorker.ts</td><td class="num-c m">75</td><td>Correct, and correctly matches the decoder's pixel indexing. Never terminated.</td></tr>
+      <tr><td class="m">App.tsx</td><td class="num-c m">62</td><td>Clean. The <code>(tab as string) === 'comparator'</code> cast is a symptom of the <code>TabId</code>/<code>ToolType</code> duplication.</td></tr>
+      <tr><td class="m">types.ts / ThemeContext / hooks / entry files</td><td class="num-c m">185</td><td>Largely dead. <strong>L1, L2</strong></td></tr>
+      <tr><td class="m">index.html · sw.js · manifest · configs · scripts/</td><td class="num-c m">~200</td><td><strong>C3, M5, L7.</strong> The six Python/PowerShell scripts in <code>scripts/</code> are one-off logo utilities — move them out of the app repo.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ═══════════ ORDER ═══════════ -->
+<section id="order">
+  <h2 class="sec">Fix order</h2>
+  <p class="sec-note">Sequenced so each step makes the next one safer. Steps 1–4 are one focused day.</p>
+
+  <ol class="steps">
+    <li><b>Stop shipping stale code</b><span>Fix the service worker (<strong>C3</strong>). Until this is done, none of the fixes below reach anyone who has already visited the site — so it has to be first.</span></li>
+    <li><b>Turn the safety net on</b><span>Add the missing import, then <code>tsc --noEmit &amp;&amp; vite build</code>, ESLint, and a Vitest round-trip suite covering every encode/decode path including WAV bit depths (<strong>H2</strong>). Everything after this gets verified instead of hoped for.</span></li>
+    <li><b>Close the silent-failure bugs</b><span>Reject 24-bit WAV (<strong>C4</strong>), fix the blob-URL cleanup in Encoder and Comparator (<strong>C5</strong>), settle the pending promise on worker error (<strong>H4</strong>). These are the ones users hit today.</span></li>
+    <li><b>Make the docs true</b><span>Remove Honey-Vault and Duress Code from the UI and README until they work (<strong>C1</strong>), fix the HKDF and NIST claims, drop "10.0 / 10", add the LICENSE file. This costs an afternoon and removes every false statement in the project.</span></li>
+    <li><b>Fix the passphrase story</b><span>2,048-word list × 6 words with rejection sampling, and an honest strength meter (<strong>H1</strong>). Delete the tail scan while you're in stegaEngine, which also fixes the wrong-password freeze (<strong>H3</strong>).</span></li>
+    <li><b>Protect keys at rest</b><span>Encrypt the keyring under a vault passphrase and encrypt exports (<strong>C2</strong>). Move the CSP to headers with <code>frame-ancestors 'none'</code> (<strong>M5</strong>) — the two go together.</span></li>
+    <li><b>Make it loadable and usable</b><span>Videos off the bundle, logos and favicon optimized (<strong>H6</strong>). Real labels on the dropzones and dialog semantics on the modals (<strong>H5</strong>). Self-host the fonts (<strong>M4</strong>).</span></li>
+    <li><b>Then clean the codebase</b><span>Strip the Figma config, delete the dead entry points, contexts, hooks and props, deduplicate the five AES implementations, split the four files over 700 lines, add routing so tabs are linkable. Leave this last — it touches everything, and by now the tests exist to catch what it breaks.</span></li>
+  </ol>
+</section>
+
+</main>
+</div>
+
+<footer>
+  Static review of D:\project\Quiet-send apk\V3 — 34 source files, 10,062 lines. No code was executed; every finding cites the file and line it was read from.
+</footer>
+
+</div>

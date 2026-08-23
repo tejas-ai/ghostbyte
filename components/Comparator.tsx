@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { compareImages, getBitPlane, readImageFile } from '../services/stegaEngine';
+import { useRevocableUrl } from '../hooks/useRevocableUrl';
 import { soundFx } from '../services/soundFx';
 
 interface ImageSlot {
@@ -248,22 +249,19 @@ export default function Comparator() {
   const [bitPlaneUrl, setBitPlaneUrl] = useState<string | null>(null);
   const [bitLoading, setBitLoading] = useState(false);
 
-  // Revoke object URLs on cleanup
-  useEffect(() => {
-    return () => {
-      if (orig?.src && orig.src.startsWith('blob:')) URL.revokeObjectURL(orig.src);
-      if (mod?.src && mod.src.startsWith('blob:')) URL.revokeObjectURL(mod.src);
-      if (stats?.heatmapUrl && stats.heatmapUrl.startsWith('blob:')) URL.revokeObjectURL(stats.heatmapUrl);
-      if (stats?.diffUrl && stats.diffUrl.startsWith('blob:')) URL.revokeObjectURL(stats.diffUrl);
-      if (bitPlaneUrl && bitPlaneUrl.startsWith('blob:')) URL.revokeObjectURL(bitPlaneUrl);
-    };
-  }, [orig, mod, stats, bitPlaneUrl]);
+  // One tracker per URL slot. Listing them all as effect dependencies made
+  // React run the cleanup on every change holding the previous render's values,
+  // so loading the second image revoked the first one's URL before analyze()
+  // had ever run -- and analysis then failed on a dead blob: URL while both
+  // thumbnails still looked fine.
+  const trackOrigUrl = useRevocableUrl();
+  const trackModUrl = useRevocableUrl();
+  const trackBitPlaneUrl = useRevocableUrl();
 
   const analyze = async () => {
     if (!orig || !mod) return;
     setLoading(true);
     setError('');
-    if (stats?.heatmapUrl) URL.revokeObjectURL(stats.heatmapUrl);
     setStats(null);
     soundFx.playScan();
 
@@ -272,8 +270,8 @@ export default function Comparator() {
       setStats(r);
 
       // Pre-calculate LSB bitplane 0
-      if (bitPlaneUrl) URL.revokeObjectURL(bitPlaneUrl);
       const lsbUrl = await getBitPlane(mod.src, 0);
+      trackBitPlaneUrl(lsbUrl);
       setBitPlaneUrl(lsbUrl);
       setBitPlane(0);
       soundFx.playSuccess();
@@ -294,8 +292,8 @@ export default function Comparator() {
     setBitPlane(plane);
 
     try {
-      if (bitPlaneUrl) URL.revokeObjectURL(bitPlaneUrl);
       const url = await getBitPlane(targetSource, plane);
+      trackBitPlaneUrl(url);
       setBitPlaneUrl(url);
     } catch {
       // ignore
@@ -326,16 +324,16 @@ export default function Comparator() {
           <ImgDropZone
             label={t.comparator.original_label || 'Original Cover Image'}
             slot={orig}
-            onLoad={(file, src, name) => setOrig({ file, src, name })}
-            onClear={() => setOrig(null)}
+            onLoad={(file, src, name) => { trackOrigUrl(src); setOrig({ file, src, name }); }}
+            onClear={() => { trackOrigUrl(null); setOrig(null); }}
             badgeText="Original Cover"
           />
 
           <ImgDropZone
             label={t.comparator.modified_label || 'Steganographic Carrier Image'}
             slot={mod}
-            onLoad={(file, src, name) => setMod({ file, src, name })}
-            onClear={() => setMod(null)}
+            onLoad={(file, src, name) => { trackModUrl(src); setMod({ file, src, name }); }}
+            onClear={() => { trackModUrl(null); setMod(null); }}
             badgeText="Stego Output"
           />
         </div>

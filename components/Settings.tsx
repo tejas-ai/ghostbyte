@@ -30,10 +30,6 @@ import {
 type ViewState = 'main' | 'language' | 'support' | 'about' | 'terms' | 'privacy' | 'guidelines' | 'blog' | 'feedback' | 'blog_post' | 'demos';
 
 interface SettingsProps {
-  hackerMode?: boolean;
-  onToggleHackerMode?: () => void;
-  toggleHackerMode?: () => void;
-  onToggleHacker?: () => void;
   onOpenKeyring?: () => void;
   onOpenGuide?: () => void;
 }
@@ -41,7 +37,6 @@ interface SettingsProps {
 export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) {
   const { language, setLanguage, t } = useLanguage();
   const [activeView, setActiveView] = useState<ViewState>('main');
-  const [feedbackText, setFeedbackText] = useState('');
 
   // Dynamic localized data
   const videos = getVideos(language);
@@ -86,11 +81,12 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
     setActiveView('blog_post');
   };
 
-  const handleFeedbackSubmit = () => {
-    soundFx.playSuccess();
-    alert(t.settings.feedback_thanks || "Thank you for your feedback! Your message has been received.");
-    setFeedbackText('');
-    setActiveView('main');
+  // Feedback opens external channels — the previous version called alert() and
+  // discarded the text without sending it anywhere, which is worse than useless
+  // for the "security findings" use case specifically invited in the placeholder.
+  const handleOpenGithubIssue = () => {
+    soundFx.playClick();
+    window.open('https://github.com/tejasj/quietsend/issues/new', '_blank', 'noopener,noreferrer');
   };
 
   // --- SUBVIEWS ---
@@ -451,7 +447,7 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
             >
               <X size={18} />
             </button>
-            <video src={selectedVideo} controls autoPlay className="w-full rounded-xl aspect-video bg-black" />
+            <video src={selectedVideo} controls autoPlay preload="none" className="w-full rounded-xl aspect-video bg-black" />
           </div>
         </div>
       )}
@@ -533,21 +529,38 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
             </button>
             <h2 className="text-xl font-bold text-white tracking-tight">{t.settings.feedback || 'Send Feedback'}</h2>
           </div>
-          <div className="p-6 rounded-2xl glass-3d space-y-4">
-            <p className="text-xs text-slate-300 font-medium">{t.settings.feedback_desc || 'Share suggestions, bug reports, or security findings directly with the maintainers.'}</p>
-            <textarea
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              placeholder={t.settings.feedback_placeholder || 'Type your technical feedback, security findings or feature requests...'}
-              rows={5}
-              className="w-full app-input p-4 text-sm text-slate-100 placeholder-slate-500 resize-none font-mono"
-            />
-            <button
-              onClick={handleFeedbackSubmit}
-              className="w-full py-3.5 rounded-xl font-mono font-bold text-xs uppercase tracking-wider btn-3d-blue text-white cursor-pointer"
-            >
-              {t.settings.feedback_submit || 'Submit Feedback'}
-            </button>
+          <div className="p-6 rounded-2xl glass-3d space-y-5">
+            <p className="text-xs text-slate-300 font-medium">
+              {t.settings.feedback_desc || 'Share suggestions, bug reports, or security findings with the maintainers.'}
+            </p>
+
+            <div className="space-y-3">
+              <a
+                href="https://github.com/tejasj/quietsend/issues/new"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => soundFx.playClick()}
+                className="flex items-center justify-between w-full p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-sm transition-all cursor-pointer group"
+              >
+                <div className="space-y-0.5">
+                  <span className="block">Open GitHub Issue</span>
+                  <span className="text-xs font-normal text-slate-400">Public tracker — bug reports, feature requests, and security findings</span>
+                </div>
+                <ChevronRight size={16} className="text-slate-400 group-hover:text-white transition-colors" />
+              </a>
+
+              <a
+                href="mailto:security@quietsend.app?subject=QuietSend+Security+Finding"
+                onClick={() => soundFx.playClick()}
+                className="flex items-center justify-between w-full p-4 rounded-xl bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 text-white font-bold text-sm transition-all cursor-pointer group"
+              >
+                <div className="space-y-0.5">
+                  <span className="block">Email Security Finding</span>
+                  <span className="text-xs font-normal text-slate-400">Private disclosure for security-sensitive reports</span>
+                </div>
+                <ChevronRight size={16} className="text-slate-400 group-hover:text-white transition-colors" />
+              </a>
+            </div>
           </div>
         </div>
       )}

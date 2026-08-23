@@ -1,41 +1,93 @@
-const CACHE_NAME = 'quietsend-v3-airgap-v1';
-const ASSETS_TO_CACHE = [
+/**
+ * QuietSend service worker.
+ *
+ * Strategy:
+ *   - Navigation / HTML requests → network-first with offline fallback.
+ *     The SW file itself is served with no-cache headers by every major
+ *     host, so the browser re-runs install on every deploy and the cache
+ *     name rotates automatically.
+ *   - Hashed /assets/* → cache-first (the hash guarantees freshness).
+ *   - Cross-origin and range requests → pass through untouched.
+ *
+ * The previous scheme used cache-first for everything including HTML and
+ * the SW script itself, which pinned every visitor to the first version
+ * they ever loaded. A security fix could not reach anyone who had already
+ * visited the site.
+ */
+
+// Injected at build time by vite.config.ts via define; falls back to a
+// timestamp so local dev always gets a fresh cache.
+const BUILD_ID = typeof __SW_BUILD_ID__ !== 'undefined' ? __SW_BUILD_ID__ : String(Date.now());
+const CACHE_NAME = `quietsend-v3-${BUILD_ID}`;
+
+const PRECACHE_URLS = [
   '/',
   '/index.html',
-  '/logo.png',
-  '/manifest.webmanifest'
+  '/manifest.webmanifest',
 ];
 
+// ── Install: precache the shell ────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
   );
+  // Activate immediately; don't wait for existing clients to close.
   self.skipWaiting();
 });
 
+// ── Activate: evict stale caches ──────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      )
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
 });
 
+// ── Fetch: route by request type ──────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const { request } = event;
+
+  // Only handle same-origin GET requests. Let cross-origin (Google Fonts
+  // previously) and non-GET pass through unchanged.
+  if (request.method !== 'GET') return;
+  if (!request.url.startsWith(self.location.origin)) return;
+
+  // Never intercept range requests — the browser uses these for <video>
+  // seeking and needs a real 206 from the server, not a 200 from cache.
+  if (request.headers.get('range')) return;
+
+  const url = new URL(request.url);
+
+  // Hashed assets are content-addressed — cache-first is safe and fast.
+  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/')) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((resp) => {
+          if (resp && resp.status === 200) {
+            const clone = resp.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return resp;
+        });
+      })
+    );
+    return;
+  }
+
+  // Navigation and HTML — network-first so updates reach users on the next
+  // page load, with the cached shell as the offline fallback.
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) return cachedResponse;
-      return fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && event.request.url.startsWith('http')) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+    fetch(request)
+      .then((resp) => {
+        if (resp && resp.status === 200) {
+          const clone = resp.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
-        return networkResponse;
-      }).catch(() => caches.match('/'));
-    })
+        return resp;
+      })
+      .catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
   );
 });

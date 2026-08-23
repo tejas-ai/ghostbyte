@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X,
   ShieldCheck,
@@ -24,6 +24,33 @@ type MessengerTab = 'whatsapp' | 'telegram' | 'signal' | 'discord' | 'email';
 
 export default function MessengerGuideModal({ isOpen, onClose }: MessengerGuideModalProps) {
   const [activeMessenger, setActiveMessenger] = useState<MessengerTab>('whatsapp');
+  const modalRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (isOpen) setTimeout(() => closeButtonRef.current?.focus(), 50);
+  }, [isOpen]);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!isOpen) return;
+    if (e.key === 'Escape') { soundFx.playClick(); onClose(); return; }
+    if (e.key === 'Tab' && modalRef.current) {
+      const focusable = Array.from(
+        modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute('disabled'));
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   if (!isOpen) return null;
 
@@ -36,9 +63,23 @@ export default function MessengerGuideModal({ isOpen, onClose }: MessengerGuideM
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+    <>
+      {/* Backdrop */}
       <div
-        className="relative w-full max-w-2xl bg-[#090d16] border border-cyan-500/30 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[90vh]"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+        onClick={() => { soundFx.playClick(); onClose(); }}
+        aria-hidden="true"
+      />
+      {/* Dialog */}
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="guide-modal-title"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+      >
+      <div
+        className="relative w-full max-w-2xl bg-[#090d16] border border-cyan-500/30 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[90vh] pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -48,7 +89,7 @@ export default function MessengerGuideModal({ isOpen, onClose }: MessengerGuideM
               <Share2 size={18} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <h3 id="guide-modal-title" className="text-base font-bold text-white flex items-center gap-2">
                 <span>Stealth Messenger Dispatch Guide</span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
                   Zero-Loss Protocol
@@ -59,10 +100,9 @@ export default function MessengerGuideModal({ isOpen, onClose }: MessengerGuideM
           </div>
 
           <button
-            onClick={() => {
-              soundFx.playClick();
-              onClose();
-            }}
+            ref={closeButtonRef}
+            onClick={() => { soundFx.playClick(); onClose(); }}
+            aria-label="Close messenger guide"
             className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer"
           >
             <X size={18} />
@@ -247,19 +287,17 @@ export default function MessengerGuideModal({ isOpen, onClose }: MessengerGuideM
         <div className="px-6 py-4 border-t border-white/10 bg-black/60 flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <Lock size={14} className="text-cyan-400" />
-            <span>QuietSend Zero-Server Air-Gapped Engine</span>
+            <span>QuietSend Client-Side Steganographic Engine</span>
           </div>
           <button
-            onClick={() => {
-              soundFx.playClick();
-              onClose();
-            }}
+            onClick={() => { soundFx.playClick(); onClose(); }}
             className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition-all shadow-lg shadow-cyan-600/30 cursor-pointer"
           >
             Got It!
           </button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

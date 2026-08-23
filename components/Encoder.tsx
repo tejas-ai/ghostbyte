@@ -1,6 +1,7 @@
-import React, { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEvent } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo, type DragEvent, type ChangeEvent } from 'react';
 import {
   Lock,
+  Unlock,
   Download,
   FileText,
   Files,
@@ -30,17 +31,24 @@ import {
 import { useLanguage } from '../contexts/LanguageContext';
 import {
   encodeImage,
+  encodeHoneyVault,
+  encryptPayload,
   buildGhostVault,
   buildGhostFile,
   calculateCapacity,
+  dualVaultCapacity,
   generatePassphrase,
   calcEntropy,
   readImageFile,
   calcSha256,
   getScaledDimensions,
   downloadZip,
+  DEFAULT_DENSITY,
+  PASSPHRASE_BITS,
+  AES_OVERHEAD_BYTES,
   type CapacityDensity,
 } from '../services/stegaEngine';
+import { useRevocableUrl } from '../hooks/useRevocableUrl';
 import {
   encryptWithPublicKey,
   getStoredContacts,
@@ -64,8 +72,12 @@ function fmtBytes(n: number) {
 function EntropyBar({ pass }: { pass: string }) {
   const { t } = useLanguage();
   const bits = calcEntropy(pass);
-  const level = bits === 0 ? 'none' : bits < 50 ? 'weak' : bits < 90 ? 'medium' : 'strong';
-  const pct = Math.min(100, (bits / 128) * 100);
+  // Calibrated against what 600k PBKDF2 iterations actually buy: below 40 bits
+  // is reachable by an offline attacker, 60+ is not. The old thresholds wanted
+  // 90 bits for "strong", which no memorable passphrase reaches and which the
+  // per-character scoring only ever produced by overcounting word phrases.
+  const level = bits === 0 ? 'none' : bits < 40 ? 'weak' : bits < 60 ? 'medium' : 'strong';
+  const pct = Math.min(100, (bits / 80) * 100);
   const colors = { none: 'transparent', weak: '#f87171', medium: '#fbbf24', strong: '#34d399' };
   const labels = {
     none: '',
@@ -106,6 +118,43 @@ function EntropyBar({ pass }: { pass: string }) {
   );
 }
 
+/**
+ * Embedding densities offered to the user, with the distortion each actually
+ * produces measured across the region the payload covers.
+ *
+ * These PSNR figures are the real ones. The default used to be LSB-6 (~20 dB,
+ * visible corruption that any bit-plane view exposes at a glance) while the
+ * interface claimed the output was "indistinguishable from sensor ISO noise
+ * (PSNR > 45 dB)". LSB-1 and LSB-2 are the densities that actually meet that
+ * description; the higher two are capacity opt-ins and are labelled as such.
+ */
+const DENSITY_CHOICES: { id: CapacityDensity; label: string; psnr: string; note: string }[] = [
+  {
+    id: 'lsb1',
+    label: 'Maximum stealth',
+    psnr: '~51 dB',
+    note: 'One bit per channel. Sits below the sensor noise of any real photograph and survives statistical inspection. Smallest capacity.',
+  },
+  {
+    id: 'lsb2',
+    label: 'Balanced',
+    psnr: '~44 dB',
+    note: 'Two bits per channel. Still inside a typical camera noise floor, with four times the room of maximum stealth. Recommended default.',
+  },
+  {
+    id: 'lsb4',
+    label: 'High capacity',
+    psnr: '~32 dB',
+    note: 'Four bits per channel. Detectable by bit-plane analysis and faintly visible in flat areas such as skies. Use when the payload will not otherwise fit.',
+  },
+  {
+    id: 'lsb6',
+    label: 'Maximum capacity',
+    psnr: '~20 dB',
+    note: 'Six bits per channel. Visibly degrades the carrier and is trivially detectable. Only for cases where nobody is inspecting the image.',
+  },
+];
+
 interface CarrierImageInfo {
   src: string;
   name: string;
@@ -139,8 +188,13 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
   // Image Carrier State
   const [carrier, setCarrier] = useState<CarrierImageInfo | null>(null);
   const [carrierDrag, setCarrierDrag] = useState(false);
-  const [density, setDensity] = useState<CapacityDensity>('lsb6');
-  const [maxDimension] = useState<number>(0);
+  const [density, setDensity] = useState<CapacityDensity>(DEFAULT_DENSITY);
+  const maxDimension = 0; // downscaling is not yet exposed in the UI
+
+  // Blob URL ownership. Each slot revokes its own URL only when replaced.
+  const trackCarrierUrl = useRevocableUrl();
+  const trackAudioUrl = useRevocableUrl();
+  const trackResultUrl = useRevocableUrl();
 
   // Audio Carrier State
   const [audioCarrier, setAudioCarrier] = useState<CarrierAudioInfo | null>(null);
@@ -157,6 +211,11 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
   const [pass, setPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [showPass, setShowPass] = useState(false);
+
+  // Deniable dual-vault: a decoy payload under a second passphrase.
+  const [dualVault, setDualVault] = useState(false);
+  const [decoyPass, setDecoyPass] = useState('');
+  const [decoyText, setDecoyText] = useState('');
 
   // Asymmetric Recipient Mode
   const [contacts, setContacts] = useState<ContactPublicKey[]>([]);
@@ -190,27 +249,11 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
     setContacts(getStoredContacts());
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (result && result.startsWith('blob:')) {
-        URL.revokeObjectURL(result);
-      }
-      if (carrier?.src && carrier.src.startsWith('blob:')) {
-        URL.revokeObjectURL(carrier.src);
-      }
-      if (audioCarrier?.previewUrl && audioCarrier.previewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(audioCarrier.previewUrl);
-      }
-    };
-  }, [result, carrier, audioCarrier]);
-
   const loadCarrier = useCallback(async (file: File) => {
     soundFx.playClick();
     try {
-      if (carrier?.src && carrier.src.startsWith('blob:')) {
-        URL.revokeObjectURL(carrier.src);
-      }
       const { src, w, h } = await readImageFile(file);
+      trackCarrierUrl(src);
       setCarrier({
         src,
         name: file.name || 'clipboard-image.png',
@@ -218,6 +261,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
         h,
         size: file.size,
       });
+      trackResultUrl(null);
       setResult(null);
       setResultFile(null);
       setError('');
@@ -225,19 +269,17 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
       setError(err instanceof Error ? err.message : 'Unable to parse image data. Please select a valid PNG, JPG, WebP, or BMP image.');
       soundFx.playError();
     }
-  }, [carrier]);
+  }, [trackCarrierUrl, trackResultUrl]);
 
   const loadAudioCarrier = useCallback(async (file: File) => {
     soundFx.playClick();
     try {
-      if (audioCarrier?.previewUrl && audioCarrier.previewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(audioCarrier.previewUrl);
-      }
       const buffer = await file.arrayBuffer();
       const { header } = parseWavHeader(buffer);
       const cap = calculateAudioCapacity(buffer, 2);
       const durationSec = header.totalSamples / header.sampleRate / header.numChannels;
       const previewUrl = URL.createObjectURL(file);
+      trackAudioUrl(previewUrl);
 
       setAudioCarrier({
         buffer,
@@ -249,6 +291,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
         channels: header.numChannels,
         previewUrl,
       });
+      trackResultUrl(null);
       setResult(null);
       setResultFile(null);
       setError('');
@@ -256,7 +299,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
       setError(err instanceof Error ? err.message : 'Unable to parse WAV audio. Ensure you select an uncompressed 16-bit PCM .wav file.');
       soundFx.playError();
     }
-  }, [audioCarrier]);
+  }, [trackAudioUrl, trackResultUrl]);
 
   /** 1-Click Interactive 30-Second Test Drive Generator */
   const handleQuickTestDrive = useCallback(async () => {
@@ -349,9 +392,8 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
   const clearCarrier = (e: React.MouseEvent) => {
     e.stopPropagation();
     soundFx.playClick();
-    if (carrier?.src && carrier.src.startsWith('blob:')) {
-      URL.revokeObjectURL(carrier.src);
-    }
+    trackCarrierUrl(null);
+    trackResultUrl(null);
     setCarrier(null);
     setResult(null);
     setResultFile(null);
@@ -361,9 +403,8 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
   const clearAudioCarrier = (e: React.MouseEvent) => {
     e.stopPropagation();
     soundFx.playClick();
-    if (audioCarrier?.previewUrl && audioCarrier.previewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(audioCarrier.previewUrl);
-    }
+    trackAudioUrl(null);
+    trackResultUrl(null);
     setAudioCarrier(null);
     setResult(null);
     setResultFile(null);
@@ -395,22 +436,57 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
     }
   };
 
-  const payloadBytes = useCallback((): number => {
-    if (mode === 'text') return new TextEncoder().encode(text).length;
-    return files.reduce((s, f) => s + f.data.length + f.name.length + 8, files.length ? 15 : 0);
-  }, [mode, text, files]);
+  /**
+   * Bytes the payload will actually occupy once framed and encrypted.
+   *
+   * Counts UTF-8 name lengths rather than UTF-16 code units, and includes the
+   * 44 bytes AES-GCM adds (16 salt + 12 IV + 16 tag). Without both, a payload
+   * just under capacity passed this check and then failed inside encodeImage
+   * with "Payload exceeds carrier capacity" while the meter still read under
+   * 100%. Memoised because it re-encodes the whole message and is read three
+   * times per render.
+   */
+  const payloadBytes = useMemo((): number => {
+    const te = new TextEncoder();
+    let framed: number;
+    if (mode === 'text') {
+      framed = te.encode(text).length;
+    } else if (files.length === 1) {
+      framed = 10 + 4 + te.encode(files[0].name).length + 4 + files[0].data.length;
+    } else if (files.length > 1) {
+      framed = files.reduce((s, f) => s + 4 + te.encode(f.name).length + 4 + f.data.length, 15);
+    } else {
+      framed = 0;
+    }
+
+    if (framed === 0) return 0;
+    const encrypting = secMode === 'asymmetric' || (secMode === 'passphrase' && pass.trim().length > 0);
+    return framed + (encrypting ? AES_OVERHEAD_BYTES : 0);
+  }, [mode, text, files, secMode, pass]);
 
   const scaledDim = carrier ? getScaledDimensions(carrier.w, carrier.h, maxDimension) : { w: 0, h: 0 };
-  const currentCap = carrierType === 'image'
+  const rawCap = carrierType === 'image'
     ? (carrier ? calculateCapacity(scaledDim.w, scaledDim.h, density) : 0)
     : (audioCarrier ? audioCarrier.capacity : 0);
 
-  const isOverCapacity = currentCap > 0 ? payloadBytes() > currentCap : false;
-  const usedPct = currentCap > 0 ? Math.min(100, (payloadBytes() / currentCap) * 100) : 0;
+  // A dual vault splits the carrier in half and pays block overhead in each.
+  const currentCap = dualVault && carrierType === 'image' ? dualVaultCapacity(rawCap) : rawCap;
+
+  const decoyBytes = dualVault ? new TextEncoder().encode(decoyText).length + AES_OVERHEAD_BYTES : 0;
+  const largestPayload = Math.max(payloadBytes, decoyBytes);
+
+  const isOverCapacity = currentCap > 0 ? largestPayload > currentCap : false;
+  const usedPct = currentCap > 0 ? Math.min(100, (largestPayload / currentCap) * 100) : 0;
+
+  /** True when the user will get a plaintext container: no passphrase, no recipient key. */
+  const isPlaintext = secMode === 'passphrase' && pass.trim().length === 0;
 
   const handleGeneratePass = () => {
     soundFx.playClick();
-    setPass(generatePassphrase());
+    const generated = generatePassphrase();
+    setPass(generated);
+    setConfirmPass(generated);
+    setShowPass(true);
   };
 
   const handleDownloadZip = async () => {
@@ -429,14 +505,42 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
       return;
     }
     if (isOverCapacity) {
-      setError('Payload exceeds carrier capacity. Switch to Max Capacity density or select a larger carrier.');
+      setError('Payload exceeds carrier capacity. Raise the density, shorten the payload, or use a larger carrier.');
       return;
     }
 
     if (secMode === 'passphrase' && pass.trim().length > 0 && pass !== confirmPass) {
-      setError('Passphrase confirmation does not match. Please verify your password to prevent accidental typo lockouts.');
+      setError('Passphrase confirmation does not match. Verify it to prevent a typo locking you out of your own payload.');
       soundFx.playError();
       return;
+    }
+
+    if (dualVault) {
+      if (carrierType !== 'image') {
+        setError('The decoy vault is only available for image carriers.');
+        soundFx.playError();
+        return;
+      }
+      if (!pass.trim()) {
+        setError('A decoy vault needs a real passphrase to hide behind. Set one first.');
+        soundFx.playError();
+        return;
+      }
+      if (!decoyPass.trim()) {
+        setError('Set a decoy passphrase. This is the one you would hand over under pressure.');
+        soundFx.playError();
+        return;
+      }
+      if (decoyPass.trim() === pass.trim()) {
+        setError('The decoy passphrase must differ from the real one, or the decoy gives no cover.');
+        soundFx.playError();
+        return;
+      }
+      if (!decoyText.trim()) {
+        setError('Write a decoy message. An empty decoy is not believable to someone who just made you unlock it.');
+        soundFx.playError();
+        return;
+      }
     }
 
     // Determine recipient armor if in asymmetric mode
@@ -479,38 +583,26 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
         rawPayload = buildGhostVault(files);
       }
 
-      const hash = await calcSha256(rawPayload);
-      setResultHash(hash);
-
-      // Handle Asymmetric vs Symmetric encryption
+      // Build the final payload (asymmetric or passphrase-wrapped).
       let finalPayload = rawPayload;
       if (secMode === 'asymmetric') {
         setProgress({ pct: 20, status: 'Deriving ECDH P-256 ephemeral keys...' });
         finalPayload = await encryptWithPublicKey(rawPayload, targetPublicArmor);
       }
 
+      // Hash the *final encrypted payload* for the integrity display.
+      // Hashing the plaintext (rawPayload) would commit the message contents
+      // to anyone who receives the hash — a deniability-breaking side channel.
+      const hash = await calcSha256(finalPayload);
+      setResultHash(hash);
+
       if (carrierType === 'audio' && audioCarrier) {
         setResultType('audio');
-        // If symmetric password provided and not asymmetric
+        // Seal through the engine's own wrapper rather than re-implementing the
+        // [salt][iv][ct] wire format inline, which had drifted into three copies.
         if (secMode === 'passphrase' && pass.trim()) {
-          // Encrypt payload with AES-GCM-256 before audio embedding
-          const salt = crypto.getRandomValues(new Uint8Array(16));
-          const iv = crypto.getRandomValues(new Uint8Array(12));
-          const pwBytes = new TextEncoder().encode(pass);
-          const keyMaterial = await crypto.subtle.importKey('raw', pwBytes, 'PBKDF2', false, ['deriveKey']);
-          const key = await crypto.subtle.deriveKey(
-            { name: 'PBKDF2', salt, iterations: 600_000, hash: 'SHA-256' },
-            keyMaterial,
-            { name: 'AES-GCM', length: 256 },
-            false,
-            ['encrypt', 'decrypt']
-          );
-          const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, rawPayload);
-          const wire = new Uint8Array(16 + 12 + ct.byteLength);
-          wire.set(salt, 0);
-          wire.set(iv, 16);
-          wire.set(new Uint8Array(ct), 28);
-          finalPayload = wire;
+          setProgress({ pct: 20, status: 'Deriving authenticated cryptographic keys...' });
+          finalPayload = await encryptPayload(rawPayload, pass.trim());
         }
 
         const audioBlob = await encodeWavAudio(
@@ -520,18 +612,33 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
           (pct, status) => setProgress({ pct, status })
         );
         const url = URL.createObjectURL(audioBlob);
+        trackResultUrl(url);
         setResult(url);
         setResultFile(new File([audioBlob], 'quietsend-audio.wav', { type: 'audio/wav' }));
       } else if (carrier) {
         setResultType('image');
-        const url = await encodeImage(
-          carrier.src,
-          finalPayload,
-          secMode === 'passphrase' ? (pass.trim() || undefined) : undefined,
-          density,
-          maxDimension,
-          (pct, status) => setProgress({ pct, status })
-        );
+
+        const url = dualVault
+          ? await encodeHoneyVault(
+              carrier.src,
+              rawPayload,
+              pass.trim(),
+              new TextEncoder().encode(decoyText),
+              decoyPass.trim(),
+              density,
+              maxDimension,
+              (pct, status) => setProgress({ pct, status }),
+            )
+          : await encodeImage(
+              carrier.src,
+              finalPayload,
+              secMode === 'passphrase' ? (pass.trim() || undefined) : undefined,
+              density,
+              maxDimension,
+              (pct, status) => setProgress({ pct, status }),
+            );
+
+        trackResultUrl(url);
         setResult(url);
 
         try {
@@ -539,7 +646,8 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
           const blob = await resp.blob();
           setResultFile(new File([blob], 'quietsend-document.png', { type: 'image/png' }));
         } catch {
-          // ignore
+          // The preview and download link both work from the blob URL directly;
+          // only the File wrapper is unavailable.
         }
       }
 
@@ -567,9 +675,26 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
         {/* Header Title & Spec */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/[0.1]">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md glass-pill-3d text-cyan-300 text-[11px] font-mono font-bold mb-2">
-              <Lock size={12} className="text-cyan-400" />
-              <span>AES-256-GCM · {secMode === 'asymmetric' ? 'ECDH P-256 Public Key' : 'PBKDF2 (600k)'} · {carrierType === 'audio' ? 'WAV Audio LSB' : 'LSB-6 Stealth'}</span>
+            {/* Reports the pipeline that will actually run, including when that
+                pipeline is "no encryption at all". */}
+            <div
+              className={`inline-flex items-center gap-2 px-3 py-1 rounded-md glass-pill-3d text-[11px] font-mono font-bold mb-2 ${
+                isPlaintext ? 'text-amber-300' : 'text-cyan-300'
+              }`}
+            >
+              {isPlaintext ? <Unlock size={12} className="text-amber-400" /> : <Lock size={12} className="text-cyan-400" />}
+              <span>
+                {isPlaintext
+                  ? 'No encryption'
+                  : secMode === 'asymmetric'
+                  ? 'ECDH P-256 · HKDF · AES-GCM-256'
+                  : 'AES-GCM-256 · PBKDF2 (600k)'}
+                {' · '}
+                {carrierType === 'audio'
+                  ? 'WAV audio LSB-2'
+                  : (DENSITY_CHOICES.find((d) => d.id === density)?.label ?? density)}
+                {dualVault && carrierType === 'image' ? ' · Dual vault' : ''}
+              </span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight font-sans">
               {t.encoder.title || 'Embed Encrypted Payload'}
@@ -600,7 +725,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
                 />
               </div>
               <div className="flex justify-between text-[10px] font-mono text-slate-400">
-                <span>{fmtBytes(payloadBytes())}</span>
+                <span>{fmtBytes(largestPayload)}</span>
                 <span>Max {fmtBytes(currentCap)}</span>
               </div>
             </div>
@@ -755,11 +880,20 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
                 </div>
               ) : (
                 <div
-                  className={`dropzone-3d p-8 text-center transition-all ${carrierDrag ? 'drag-over' : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Upload cover image"
+                  className={`dropzone-3d p-8 text-center transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-400 ${carrierDrag ? 'drag-over' : ''}`}
                   onDragOver={(e) => { e.preventDefault(); setCarrierDrag(true); }}
                   onDragLeave={() => setCarrierDrag(false)}
                   onDrop={onCarrierDrop}
                   onClick={() => carrierInputRef.current?.click()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      carrierInputRef.current?.click();
+                    }
+                  }}
                 >
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-center text-cyan-400 shadow-md">
@@ -811,7 +945,10 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
                 </div>
               ) : (
                 <div
-                  className={`dropzone-3d p-8 text-center transition-all ${audioDrag ? 'drag-over' : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Upload cover WAV audio"
+                  className={`dropzone-3d p-8 text-center transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-400 ${audioDrag ? 'drag-over' : ''}`}
                   onDragOver={(e) => { e.preventDefault(); setAudioDrag(true); }}
                   onDragLeave={() => setAudioDrag(false)}
                   onDrop={(e) => {
@@ -821,6 +958,12 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
                     if (f) loadAudioCarrier(f);
                   }}
                   onClick={() => audioInputRef.current?.click()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      audioInputRef.current?.click();
+                    }
+                  }}
                 >
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-400/30 flex items-center justify-center text-purple-400 shadow-md">
@@ -834,6 +977,49 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
                 </div>
               )
             )}
+            {/* Embedding density — the trade between how much fits and how visible it is. */}
+            {carrierType === 'image' && carrier && (
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-300 font-mono uppercase tracking-wide">
+                    Embedding density
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {DENSITY_CHOICES.find((d) => d.id === density)?.psnr} in the covered region
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {DENSITY_CHOICES.map((choice) => {
+                    const active = density === choice.id;
+                    const cap = carrier ? calculateCapacity(scaledDim.w, scaledDim.h, choice.id) : 0;
+                    return (
+                      <button
+                        key={choice.id}
+                        type="button"
+                        onClick={() => { soundFx.playClick(); setDensity(choice.id); }}
+                        className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                          active
+                            ? 'bg-cyan-600/20 border-cyan-400/60 shadow-md'
+                            : 'bg-black/40 border-white/10 hover:border-white/25'
+                        }`}
+                      >
+                        <span className={`block text-[11px] font-bold ${active ? 'text-cyan-200' : 'text-slate-300'}`}>
+                          {choice.label}
+                        </span>
+                        <span className="block text-[9px] font-mono text-slate-500 mt-0.5">
+                          {fmtBytes(dualVault ? dualVaultCapacity(cap) : cap)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  {DENSITY_CHOICES.find((d) => d.id === density)?.note}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Step 2 — Payload Configuration (Text vs Files) */}
@@ -843,7 +1029,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
                 <span className="w-5 h-5 rounded bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center text-[10px] font-bold shadow-sm">
                   2
                 </span>
-                <span>{t.encoder.step2 || 'Secret Payload Formulation'}</span>
+                <span>Secret Payload Payload Type</span>
               </div>
 
               <div className="flex gap-1.5 p-1 rounded-lg bg-black/50 border border-white/10">
@@ -888,11 +1074,20 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
                   onChange={onFilesChange}
                 />
                 <div
-                  className={`dropzone-3d p-6 text-center transition-all ${filesDrag ? 'drag-over' : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Upload payload files for GhostVault"
+                  className={`dropzone-3d p-6 text-center transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-400 ${filesDrag ? 'drag-over' : ''}`}
                   onDragOver={(e) => { e.preventDefault(); setFilesDrag(true); }}
                   onDragLeave={() => setFilesDrag(false)}
                   onDrop={onFilesDrop}
                   onClick={() => filesInputRef.current?.click()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      filesInputRef.current?.click();
+                    }
+                  }}
                 >
                   <div className="flex flex-col items-center gap-2">
                     <Files className="text-cyan-400" size={20} />
@@ -1052,15 +1247,91 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
 
                 <EntropyBar pass={pass} />
 
-                {/* Zero-Knowledge & Strength Guidance Notice */}
-                <div className="p-2.5 rounded-lg bg-black/40 border border-white/10 space-y-1 text-[11px] leading-relaxed">
-                  <p className="text-slate-300 flex items-center gap-1.5 font-medium">
-                    <span className="text-amber-400">⚠️</span>
-                    <strong>Zero-Knowledge Irrecoverability:</strong> No master recovery key exists. If you lose this password, your payload is permanently unrecoverable.
-                  </p>
-                  <p className="text-slate-400 text-[10px]">
-                    <strong className="text-slate-300">Security Tip:</strong> 600,000 PBKDF2 iterations protect high-entropy passphrases from GPU cracking, but cannot protect simple dictionary words. Use the generator button for maximum security.
-                  </p>
+                {/* Plaintext state — no passphrase means no encryption at all. */}
+                {isPlaintext ? (
+                  <div className="p-3 rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-start gap-2.5 text-[11px] leading-relaxed">
+                    <AlertTriangle size={15} className="shrink-0 text-amber-400 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-amber-300">This payload will not be encrypted</p>
+                      <p className="text-amber-200/90">
+                        With no passphrase, your message is hidden but readable by anyone who extracts it.
+                        Enter a passphrase above, or use the generator, to encrypt it with AES-GCM-256.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-lg bg-black/40 border border-white/10 space-y-1 text-[11px] leading-relaxed">
+                    <p className="text-slate-300 flex items-center gap-1.5 font-medium">
+                      <span className="text-amber-400">⚠️</span>
+                      <strong>No recovery key exists.</strong> Lose this passphrase and the payload is gone permanently.
+                    </p>
+                    <p className="text-slate-400 text-[10px]">
+                      600,000 PBKDF2 iterations slow down GPU cracking, but they cannot rescue a guessable
+                      passphrase. The generator produces {PASSPHRASE_BITS} bits from a 256-word list.
+                    </p>
+                  </div>
+                )}
+
+                {/* Deniable dual vault */}
+                <div className="rounded-lg bg-black/40 border border-white/10 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => { soundFx.playClick(); setDualVault(!dualVault); }}
+                    className="w-full flex items-center justify-between gap-3 p-3 text-left hover:bg-white/[0.03] transition-colors cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Shield size={14} className={dualVault ? 'text-emerald-400' : 'text-slate-500'} />
+                      <span className="text-[11px] font-bold text-white">Add a decoy vault</span>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-white/10 text-slate-300 border border-white/10">
+                        Plausible deniability
+                      </span>
+                    </span>
+                    <span
+                      className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${dualVault ? 'bg-emerald-500' : 'bg-white/15'}`}
+                    >
+                      <span
+                        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${dualVault ? 'left-[18px]' : 'left-0.5'}`}
+                      />
+                    </span>
+                  </button>
+
+                  {dualVault && (
+                    <div className="p-3 pt-0 space-y-2.5 animate-fade-in">
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        The carrier holds two separate vaults. Your real passphrase opens the real payload;
+                        the decoy passphrase opens the decoy. Neither reveals the other, and nothing in the
+                        image shows which one you gave.
+                      </p>
+
+                      <input
+                        type={showPass ? 'text' : 'password'}
+                        placeholder="Decoy passphrase — the one you would hand over"
+                        value={decoyPass}
+                        onChange={(e) => setDecoyPass(e.target.value)}
+                        className={`w-full px-3 py-2 rounded-lg bg-black/70 border text-xs text-white placeholder:text-slate-500 focus:outline-none transition-colors font-mono ${
+                          decoyPass && decoyPass === pass ? 'border-red-500/60' : 'border-white/15 focus:border-emerald-400'
+                        }`}
+                      />
+                      {decoyPass && decoyPass === pass && (
+                        <p className="text-[10px] text-red-400 font-semibold">
+                          The decoy passphrase must differ from the real one.
+                        </p>
+                      )}
+
+                      <textarea
+                        placeholder="Decoy message — make it plausible enough to satisfy whoever asked"
+                        value={decoyText}
+                        onChange={(e) => setDecoyText(e.target.value)}
+                        rows={2}
+                        className="w-full p-2.5 rounded-lg bg-black/70 border border-white/15 text-[11px] text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-400 resize-none"
+                      />
+
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        Each vault gets half the carrier, so capacity per vault is
+                        {' '}{fmtBytes(currentCap)} at this density.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1134,7 +1405,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
             ) : (
               <>
                 <Lock size={16} />
-                <span>Generate Encrypted {carrierType === 'image' ? 'Stego Image' : 'Stego Audio'}</span>
+                <span>{isPlaintext ? "Generate" : "Generate Encrypted"} {carrierType === "image" ? "Stego Image" : "Stego Audio"}</span>
               </>
             )}
           </button>
@@ -1181,12 +1452,13 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
 
             <div className="space-y-4 text-xs font-mono">
               <div className="p-3 rounded-lg bg-black/50 border border-white/10 space-y-1">
-                <span className="text-slate-400 text-[10px] uppercase font-bold">Payload SHA-256 Fingerprint (Integrity Hash · Not a Password)</span>
+                <span className="text-slate-400 text-[10px] uppercase font-bold">Encrypted Output SHA-256 — Share this to verify file integrity</span>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-cyan-300 font-bold truncate">{resultHash}</span>
                   <button
                     type="button"
                     onClick={copyHash}
+                    aria-label="Copy integrity hash"
                     className="p-1 rounded bg-white/10 hover:bg-white/20 text-slate-300 transition-colors cursor-pointer"
                     title="Copy Checksum"
                   >

@@ -1,6 +1,6 @@
 
 {
-  "name": "StegaVault - Professional Steganography Suite",
-  "description": "A high-performance web application for hiding and extracting secret data within images using advanced LSB steganography and AES-GCM encryption.",
+  "name": "QuietSend - Professional Steganography Suite",
+  "description": "A high-performance web application for hiding and extracting secret data within images and audio using AES-GCM-256, ECDH P-256 key exchange, and advanced LSB steganography — all processed locally in the browser with no server contact.",
   "requestFramePermissions": []
 }

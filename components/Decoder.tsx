@@ -30,9 +30,11 @@ import {
   readImageFile,
   calcSha256,
   unpackPayload,
+  openContainer,
   type DecodeResult,
   type EmbeddedFile,
 } from '../services/stegaEngine';
+import { useRevocableUrl } from '../hooks/useRevocableUrl';
 import {
   getStoredKeyring,
   isAsymmetricPayload,
@@ -117,6 +119,7 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
   // Stego Carrier State (Image or Audio)
   const [carrierKind, setCarrierKind] = useState<'image' | 'audio'>('image');
   const [stegoSrc, setStegoSrc] = useState<string | null>(null);
+  const trackStegoUrl = useRevocableUrl();
   const [stegoName, setStegoName] = useState<string>('');
   const [audioBuffer, setAudioBuffer] = useState<ArrayBuffer | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -155,14 +158,6 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
     }
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (stegoSrc && stegoSrc.startsWith('blob:')) {
-        URL.revokeObjectURL(stegoSrc);
-      }
-    };
-  }, [stegoSrc]);
-
   const loadStegoFile = useCallback(async (file: File) => {
     soundFx.playClick();
     setError('');
@@ -170,25 +165,23 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
     setTextHash('');
 
     if (file.name.toLowerCase().endsWith('.wav') || file.type.includes('audio')) {
-      // Audio carrier
       try {
         const buf = await file.arrayBuffer();
-        parseWavHeader(buf); // validate
+        parseWavHeader(buf); // validate before accepting
+        const url = URL.createObjectURL(file);
+        trackStegoUrl(url);
         setCarrierKind('audio');
         setAudioBuffer(buf);
         setStegoName(file.name);
-        setStegoSrc(URL.createObjectURL(file));
-      } catch (err: any) {
-        setError(err?.message || 'Invalid WAV audio file.');
+        setStegoSrc(url);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Invalid WAV audio file.');
         soundFx.playError();
       }
     } else {
-      // Image carrier
       try {
-        if (stegoSrc && stegoSrc.startsWith('blob:')) {
-          URL.revokeObjectURL(stegoSrc);
-        }
         const { src } = await readImageFile(file);
+        trackStegoUrl(src);
         setCarrierKind('image');
         setAudioBuffer(null);
         setStegoSrc(src);
@@ -198,7 +191,7 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
         soundFx.playError();
       }
     }
-  }, [stegoSrc]);
+  }, [trackStegoUrl]);
 
   // Direct Clipboard (Ctrl + V) Ingestion
   useEffect(() => {
@@ -233,9 +226,7 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
   const clearStego = (e: React.MouseEvent) => {
     e.stopPropagation();
     soundFx.playClick();
-    if (stegoSrc && stegoSrc.startsWith('blob:')) {
-      URL.revokeObjectURL(stegoSrc);
-    }
+    trackStegoUrl(null);
     setStegoSrc(null);
     setAudioBuffer(null);
     setStegoName('');
@@ -267,33 +258,29 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
         setProgress({ pct: 30, status: 'Scanning 16-bit PCM audio samples...' });
         const rawExtracted = await decodeWavAudio(audioBuffer, 2, (pct, status) => setProgress({ pct, status }));
 
-        let finalData = rawExtracted;
+        let unpacked: DecodeResult;
         if (isAsymmetricPayload(rawExtracted)) {
           if (!secretParam) {
-            throw new Error('This audio file is asymmetrically encrypted. Please select your Keyring Identity to unlock.');
+            throw new Error('This audio file is encrypted to a public key. Select your Keyring identity to unlock it.');
           }
-          finalData = await decryptWithPrivateKey(rawExtracted, secretParam);
+          unpacked = unpackPayload(await decryptWithPrivateKey(rawExtracted, secretParam));
         } else if (secretParam) {
-          // If symmetric AES encrypted wire: [salt:16][iv:12][ct]
-          if (rawExtracted.length > 28) {
-            const salt = new Uint8Array(rawExtracted.subarray(0, 16));
-            const iv = new Uint8Array(rawExtracted.subarray(16, 28));
-            const ct = new Uint8Array(rawExtracted.subarray(28));
-            const pwBytes = new TextEncoder().encode(secretParam);
-            const keyMaterial = await crypto.subtle.importKey('raw', pwBytes, 'PBKDF2', false, ['deriveKey']);
-            const key = await crypto.subtle.deriveKey(
-              { name: 'PBKDF2', salt, iterations: 600_000, hash: 'SHA-256' },
-              keyMaterial,
-              { name: 'AES-GCM', length: 256 },
-              false,
-              ['decrypt']
-            );
-            const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
-            finalData = new Uint8Array(pt);
+          // Route through the same container opener the image path uses, so a
+          // passphrase typed against an unencrypted carrier falls back to the
+          // plaintext payload instead of failing the whole extraction. This
+          // branch used to inline its own PBKDF2/AES-GCM and threw on any
+          // mismatch, discarding a payload that was sitting right there.
+          try {
+            unpacked = await openContainer(rawExtracted, secretParam);
+          } catch (err) {
+            const plain = unpackPayload(rawExtracted);
+            if (plain.type === 'binary') throw err; // genuinely encrypted, wrong key
+            unpacked = plain;
           }
+        } else {
+          unpacked = unpackPayload(rawExtracted);
         }
 
-        const unpacked = unpackPayload(finalData);
         setResult(unpacked);
         if (unpacked.type === 'text') {
           const hash = await calcSha256(new TextEncoder().encode(unpacked.content));
@@ -422,11 +409,20 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
               </div>
             ) : (
               <div
-                className={`dropzone-3d p-8 text-center transition-all ${dragOver ? 'drag-over' : ''}`}
+                role="button"
+                tabIndex={0}
+                aria-label="Upload carrier image or audio file"
+                className={`dropzone-3d p-8 text-center transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-400 ${dragOver ? 'drag-over' : ''}`}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={onDrop}
                 onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
               >
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-400/30 flex items-center justify-center text-pink-400 shadow-md">
