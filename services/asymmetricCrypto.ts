@@ -20,6 +20,7 @@ import { zeroFill } from './stegaEngine';
 import { asBufferSource } from './binary';
 
 const enc = new TextEncoder();
+const dec = new TextDecoder();
 
 export interface KeyPairInfo {
   id: string;
@@ -188,10 +189,10 @@ export function isAsymmetricPayload(data: Uint8Array): boolean {
 /**
  * Derive the AES key from an ECDH agreement.
  *
- * v2 runs the shared secret through HKDF-SHA-256, salted with both public keys
- * so the result is bound to this specific pair, and tagged with a protocol
- * label. v1 reproduces the old raw-agreement behaviour for decrypting existing
- * envelopes.
+ * v2 runs the shared secret through HKDF-SHA-256, salted with the unique
+ * ephemeral public key so both sides reconstruct it without extra state, and
+ * tagged with a protocol label. v1 reproduces the old raw-agreement behaviour
+ * for decrypting existing envelopes.
  */
 async function deriveSharedAesKey(
   privateKey: CryptoKey,
@@ -330,7 +331,15 @@ export async function decryptWithPrivateKey(
 export function getStoredKeyring(): KeyPairInfo[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_KEYRING);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    if (raw.startsWith('QS_ENC:')) {
+      const bytes = base64ToBuf(raw.slice(7));
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] ^= (0xa5 ^ (i & 0x7f));
+      }
+      return JSON.parse(dec.decode(bytes));
+    }
+    return JSON.parse(raw);
   } catch {
     return [];
   }

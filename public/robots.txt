@@ -1,0 +1,5 @@
+# QuietSend Steganography Enclave Robots.txt
+User-agent: *
+Allow: /
+
+Sitemap: https://quietsend.app/sitemap.xml

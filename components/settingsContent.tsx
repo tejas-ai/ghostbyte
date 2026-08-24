@@ -6,6 +6,7 @@ export interface LocalizedVideo {
   desc: string;
   src: string;
   difficulty: string;
+  steps: string[];
 }
 
 export interface LocalizedBlogPost {
@@ -273,48 +274,365 @@ export const getVideos = (lang: Language): LocalizedVideo[] => {
   switch (lang) {
     case 'Kannada':
       return [
-        { title: "ಚಿತ್ರದೊಳಗೆ ರಹಸ್ಯ ಪಠ್ಯವನ್ನು ಅಡಗಿಸಿ", desc: "ಮೂಲಭೂತ ಪಠ್ಯ ಸ್ಟೆಗಾನೋಗ್ರಫಿ ಕಲಿಯಿರಿ", src: "/videos/pt1.mp4", difficulty: "ಪ್ರಾರಂಭಿಕ" },
-        { title: "ಮತ್ತೊಂದು ಚಿತ್ರದೊಳಗೆ ರಹಸ್ಯ ಚಿತ್ರಗಳನ್ನು ಅಡಗಿಸಿ", desc: "ಸುಧಾರಿತ ಚಿತ್ರದೊಳಗೆ ಚಿತ್ರ ಅಡಗಿಸುವ ತಂತ್ರ", src: "/videos/pt2.mp4", difficulty: "ಮಧ್ಯಂತರ" },
-        { title: "ಚಿತ್ರದೊಳಗೆ MP3 ಫೈಲ್‌ಗಳನ್ನು ಅಡಗಿಸಿ", desc: "ಆಡಿಯೊ ಫೈಲ್‌ಗಳನ್ನು ಸುರಕ್ಷಿತವಾಗಿ ಅಡಗಿಸಿ", src: "/videos/pt3.mp4", difficulty: "ಮಧ್ಯಂತರ" },
-        { title: "ಚಿತ್ರದೊಳಗೆ PDF ಫೈಲ್‌ಗಳನ್ನು ಅಡಗಿಸಿ", desc: "ದಾಖಲೆ ಸ್ಟೆಗಾನೋಗ್ರಫಿ ತಂತ್ರಗಳು", src: "/videos/pt4.mp4", difficulty: "ಸುಧಾರಿತ" },
-        { title: "ಚಿತ್ರದೊಳಗೆ EXE ಫೈಲ್‌ಗಳನ್ನು ಅಡಗಿಸಿ", desc: "ಎಕ್ಸಿಕ್ಯೂಟೇಬಲ್ ಫೈಲ್ ಮರೆಮಾಚುವಿಕೆ", src: "/videos/pt5.mp4", difficulty: "ಸುಧಾರಿತ" },
-        { title: "ಸಾಮಾನ್ಯ ಚಿತ್ರ vs ಎನ್‌ಕೋಡ್ ಮಾಡಿದ ಚಿತ್ರವನ್ನು ಹೋಲಿಕೆ ಮಾಡಿ", desc: "ದೃಶ್ಯ ಮತ್ತು ಬಿಟ್-ಮಟ್ಟದ ವಿಶ್ಲೇಷಣೆ", src: "/videos/ppt6.mp4", difficulty: "ತಜ್ಞ" },
+        {
+          title: "ಚಿತ್ರದೊಳಗೆ ರಹಸ್ಯ ಪಠ್ಯವನ್ನು ಅಡಗಿಸಿ",
+          desc: "ಮೂಲಭೂತ ಪಠ್ಯ ಸ್ಟೆಗಾನೋಗ್ರಫಿ ಕಲಿಯಿರಿ",
+          src: "/videos/pt1.mp4",
+          difficulty: "ಪ್ರಾರಂಭಿಕ",
+          steps: [
+            "ಹಂತ 1: ಹೈಡ್ ಸೀಕ್ರೆಟ್ ಟ್ಯಾಬ್ ತೆರೆಯಿರಿ ಮತ್ತು ಕ್ಯಾರಿಯರ್ ಚಿತ್ರವನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ.",
+            "ಹಂತ 2: ರಹಸ್ಯ ಪಠ್ಯ ಸಂದೇಶವನ್ನು ನಮೂದಿಸಿ.",
+            "ಹಂತ 3: ರಹಸ್ಯ ಪಾಸ್‌ಫ್ರೇಸ್ ಹೊಂದಿಸಿ.",
+            "ಹಂತ 4: ಕನ್ಸೀಲ್ ಬಟನ್ ಕ್ಲಿಕ್ ಮಾಡಿ.",
+            "ಹಂತ 5: ಸ್ಟೆಗೋ ಚಿತ್ರವನ್ನು ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ.",
+          ],
+        },
+        {
+          title: "ಮತ್ತೊಂದು ಚಿತ್ರದೊಳಗೆ ರಹಸ್ಯ ಚಿತ್ರಗಳನ್ನು ಅಡಗಿಸಿ",
+          desc: "ಸುಧಾರಿತ ಚಿತ್ರದೊಳಗೆ ಚಿತ್ರ ಅಡಗಿಸುವ ತಂತ್ರ",
+          src: "/videos/pt2.mp4",
+          difficulty: "ಮಧ್ಯಂತರ",
+          steps: [
+            "ಹಂತ 1: ಸೀಕ್ರೆಟ್ ಫೈಲ್ಸ್ ಮೋಡ್ ಆಯ್ಕೆಮಾಡಿ.",
+            "ಹಂತ 2: ಕ್ಯಾರಿಯರ್ ಫೋಟೋ ಮತ್ತು ರಹಸ್ಯ ಚಿತ್ರವನ್ನು ಸೇರಿಸಿ.",
+            "ಹಂತ 3: ಕಂಟೇನರ್ ಎನ್‌ಕ್ರಿಪ್ಟ್ ಮಾಡಿ.",
+            "ಹಂತ 4: ಸ್ಟೆಗೋ ಚಿತ್ರವನ್ನು ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ.",
+          ],
+        },
+        {
+          title: "ಚಿತ್ರದೊಳಗೆ MP3 ಫೈಲ್‌ಗಳನ್ನು ಅಡಗಿಸಿ",
+          desc: "ಆಡಿಯೊ ಫೈಲ್‌ಗಳನ್ನು ಸುರಕ್ಷಿತವಾಗಿ ಅಡಗಿಸಿ",
+          src: "/videos/pt3.mp4",
+          difficulty: "ಮಧ್ಯಂತರ",
+          steps: [
+            "ಹಂತ 1: ಆಡಿಯೋ MP3 ಫೈಲ್ ಸಿದ್ಧಪಡಿಸಿ.",
+            "ಹಂತ 2: ಹೆಚ್ಚಿನ ರೆಸಲ್ಯೂಶನ್ ಕ್ಯಾರಿಯರ್ ಚಿತ್ರ ಬಳಸಿ.",
+            "ಹಂತ 3: AES-GCM ಎನ್‌ಕ್ರಿಪ್ಶನ್ ಅನ್ವಯಿಸಿ.",
+            "ಹಂತ 4: ಸ್ಟೆಗೋ ಚಿತ್ರ ರಫ್ತು ಮಾಡಿ.",
+          ],
+        },
+        {
+          title: "ಚಿತ್ರದೊಳಗೆ PDF ಫೈಲ್‌ಗಳನ್ನು ಅಡಗಿಸಿ",
+          desc: "ದಾಖಲೆ ಸ್ಟೆಗಾನೋಗ್ರಫಿ ತಂತ್ರಗಳು",
+          src: "/videos/pt4.mp4",
+          difficulty: "ಸುಧಾರಿತ",
+          steps: [
+            "ಹಂತ 1: PDF ದಾಖಲೆಗಳನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
+            "ಹಂತ 2: ಘೋಸ್ಟ್‌ವಾಲ್ಟ್ ಡ್ರಾಪ್‌ಜೋನ್‌ಗೆ ಸೇರಿಸಿ.",
+            "ಹಂತ 3: ಸಾರ್ವಜನಿಕ ಕೀ ಅಥವಾ ಪಾಸ್‌ಫ್ರೇಸ್ ಬಳಸಿ.",
+            "ಹಂತ 4: ಸ್ಟೆಗೋ ಫೋಟೋ ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ.",
+          ],
+        },
+        {
+          title: "ಚಿತ್ರದೊಳಗೆ EXE ಫೈಲ್‌ಗಳನ್ನು ಅಡಗಿಸಿ",
+          desc: "ಎಕ್ಸಿಕ್ಯೂಟೇಬಲ್ ಫೈಲ್ ಮರೆಮಾಚುವಿಕೆ",
+          src: "/videos/pt5.mp4",
+          difficulty: "ಸುಧಾರಿತ",
+          steps: [
+            "ಹಂತ 1: ಬೈನರಿ ಫೈಲ್ ಅನ್ನು ವಾಲ್ಟ್‌ಗೆ ಸೇರಿಸಿ.",
+            "ಹಂತ 2: ಒಟ್ಟು ಆರ್ಕೈವ್ ಮಿತಿ ಪರಿಶೀಲಿಸಿ.",
+            "ಹಂತ 3: ಎನ್‌ಕ್ರಿಪ್ಶನ್ ಪೂರ್ಣಗೊಳಿಸಿ.",
+          ],
+        },
+        {
+          title: "ಸಾಮಾನ್ಯ ಚಿತ್ರ vs ಎನ್‌ಕೋಡ್ ಮಾಡಿದ ಚಿತ್ರವನ್ನು ಹೋಲಿಕೆ ಮಾಡಿ",
+          desc: "ದೃಶ್ಯ ಮತ್ತು ಬಿಟ್-ಮಟ್ಟದ ವಿಶ್ಲೇಷಣೆ",
+          src: "/videos/ppt6.mp4",
+          difficulty: "ತಜ್ಞ",
+          steps: [
+            "ಹಂತ 1: ಫೋರೆನ್ಸಿಕ್ ಕಂಪ್ಯಾರೇಟರ್ ತೆರೆಯಿರಿ.",
+            "ಹಂತ 2: ಎರಡೂ ಚಿತ್ರಗಳನ್ನು ಲೋಡ್ ಮಾಡಿ.",
+            "ಹಂತ 3: ಸ್ಪ್ಲಿಟ್ ಸ್ಲೈಡರ್ ಬಳಸಿ MSE ಮತ್ತು PSNR ಪರಿಶೀಲಿಸಿ.",
+          ],
+        },
       ];
     case 'Hindi':
       return [
-        { title: "छवि के अंदर गुप्त टेक्स्ट छिपाएं", desc: "बुनियादी टेक्स्ट स्टेग्नोग्राफ़ी सीखें", src: "/videos/pt1.mp4", difficulty: "शुरुआती" },
-        { title: "दूसरी छवि के अंदर गुप्त छवियां छिपाएं", desc: "उन्नत छवि-में-छवि छिपाना", src: "/videos/pt2.mp4", difficulty: "मध्यम" },
-        { title: "छवि के अंदर MP3 फ़ाइलें छिपाएं", desc: "ऑडियो फ़ाइलों को सुरक्षित रूप से छुपाएं", src: "/videos/pt3.mp4", difficulty: "मध्यम" },
-        { title: "छवि के अंदर PDF फ़ाइलें छिपाएं", desc: "दस्तावेज़ स्टेग्नोग्राफ़ी तकनीक", src: "/videos/pt4.mp4", difficulty: "उन्नत" },
-        { title: "छवि के अंदर EXE फ़ाइलें छिपाएं", desc: "निष्पादन योग्य फ़ाइल छिपाव", src: "/videos/pt5.mp4", difficulty: "उन्नत" },
-        { title: "सामान्य छवि बनाम एन्कोडेड छवि की तुलना करें", desc: "दृश्य और बिट-स्तरीय विश्लेषण", src: "/videos/ppt6.mp4", difficulty: "विशेषज्ञ" },
+        {
+          title: "छवि के अंदर गुप्त टेक्स्ट छिपाएं",
+          desc: "बुनियादी टेक्स्ट स्टेग्नोग्राफ़ी सीखें",
+          src: "/videos/pt1.mp4",
+          difficulty: "शुरुआती",
+          steps: [
+            "चरण 1: हाइड सीक्रेट टैब खोलें और कवर इमेज अपलोड करें।",
+            "चरण 2: गुप्त टेक्स्ट संदेश टाइप करें।",
+            "चरण 3: पासवर्ड सेट करें।",
+            "चरण 4: एन्कोड करें और स्टेगो इमेज डाउनलोड करें।",
+          ],
+        },
+        {
+          title: "दूसरी छवि के अंदर गुप्त छवियां छिपाएं",
+          desc: "उन्नत छवि-में-छवि छिपाना",
+          src: "/videos/pt2.mp4",
+          difficulty: "मध्यम",
+          steps: [
+            "चरण 1: सीक्रेट फाइल्स मोड चुनें।",
+            "चरण 2: कवर फोटो और सीक्रेट इमेज अपलोड करें।",
+            "चरण 3: पासवर्ड सेट करें और फाइल डाउनलोड करें।",
+          ],
+        },
+        {
+          title: "छवि के अंदर MP3 फ़ाइलें छिपाएं",
+          desc: "ऑडियो फ़ाइलों को सुरक्षित रूप से छुपाएं",
+          src: "/videos/pt3.mp4",
+          difficulty: "मध्यम",
+          steps: [
+            "चरण 1: ऑडियो MP3 फाइल जोड़ें।",
+            "चरण 2: उपयुक्त आकार की कवर इमेज चुनें।",
+            "चरण 3: एन्क्रिप्शन पूरा करें।",
+          ],
+        },
+        {
+          title: "छवि के अंदर PDF फ़ाइलें छिपाएं",
+          desc: "दस्तावेज़ स्टेग्नोग्राफ़ी तकनीक",
+          src: "/videos/pt4.mp4",
+          difficulty: "उन्नत",
+          steps: [
+            "चरण 1: पीडीएफ दस्तावेज जोड़ें।",
+            "चरण 2: एन्क्रिप्शन विधि चुनें।",
+            "चरण 3: स्टेगो इमेज सुरक्षित रूप से डाउनलोड करें।",
+          ],
+        },
+        {
+          title: "छवि के अंदर EXE फ़ाइलें छिपाएं",
+          desc: "निष्पादन योग्य फ़ाइल छिपाव",
+          src: "/videos/pt5.mp4",
+          difficulty: "उन्नत",
+          steps: [
+            "चरण 1: निष्पादन योग्य फाइलें जोड़ें।",
+            "चरण 2: आर्काइव सील करें।",
+          ],
+        },
+        {
+          title: "सामान्य छवि बनाम एन्कोडेड छवि की तुलना करें",
+          desc: "दृश्य और बिट-स्तरीय विश्लेषण",
+          src: "/videos/ppt6.mp4",
+          difficulty: "विशेषज्ञ",
+          steps: [
+            "चरण 1: फॉरेंसिक कंपैरेटर खोलें।",
+            "चरण 2: दोनों छवियों को लोड करें।",
+            "चरण 3: स्लाइडर का उपयोग करके विश्लेषण करें।",
+          ],
+        },
       ];
     case 'Spanish':
       return [
-        { title: "Ocultar Texto Secreto Dentro de una Imagen", desc: "Aprenda esteganografía de texto básica", src: "/videos/pt1.mp4", difficulty: "Principiante" },
-        { title: "Ocultar Imágenes Secretas Dentro de Otra Imagen", desc: "Ocultación avanzada de imagen en imagen", src: "/videos/pt2.mp4", difficulty: "Intermedio" },
-        { title: "Ocultar Archivos MP3 Dentro de una Imagen", desc: "Oculte archivos de audio de forma segura", src: "/videos/pt3.mp4", difficulty: "Intermedio" },
-        { title: "Ocultar Archivos PDF Dentro de una Imagen", desc: "Técnicas de esteganografía de documentos", src: "/videos/pt4.mp4", difficulty: "Avanzado" },
-        { title: "Ocultar Archivos EXE Dentro de una Imagen", desc: "Ocultación de archivos ejecutables", src: "/videos/pt5.mp4", difficulty: "Avanzado" },
-        { title: "Comparar Imagen Normal vs Imagen Codificada", desc: "Análisis visual y a nivel de bits", src: "/videos/ppt6.mp4", difficulty: "Experto" },
+        {
+          title: "Ocultar Texto Secreto Dentro de una Imagen",
+          desc: "Aprenda esteganografía de texto básica",
+          src: "/videos/pt1.mp4",
+          difficulty: "Principiante",
+          steps: [
+            "Paso 1: Abra la pestaña Ocultar y cargue una foto de portada PNG.",
+            "Paso 2: Ingrese su mensaje de texto confidencial.",
+            "Paso 3: Establezca una contraseña segura.",
+            "Paso 4: Haga clic en Ocultar y descargue la imagen esteganográfica.",
+          ],
+        },
+        {
+          title: "Ocultar Imágenes Secretas Dentro de Otra Imagen",
+          desc: "Ocultación avanzada de imagen en imagen",
+          src: "/videos/pt2.mp4",
+          difficulty: "Intermedio",
+          steps: [
+            "Paso 1: Seleccione Archivos Secretos / GhostVault.",
+            "Paso 2: Adjunte las imágenes que desea ocultar.",
+            "Paso 3: Enripte con AES-GCM-256 y descargue.",
+          ],
+        },
+        {
+          title: "Ocultar Archivos MP3 Dentro de una Imagen",
+          desc: "Oculte archivos de audio de forma segura",
+          src: "/videos/pt3.mp4",
+          difficulty: "Intermedio",
+          steps: [
+            "Paso 1: Prepare su archivo de audio MP3.",
+            "Paso 2: Cargue una imagen de portada con capacidad suficiente.",
+            "Paso 3: Enripte y descargue el archivo portador.",
+          ],
+        },
+        {
+          title: "Ocultar Archivos PDF Dentro de una Imagen",
+          desc: "Técnicas de esteganografía de documentos",
+          src: "/videos/pt4.mp4",
+          difficulty: "Avanzado",
+          steps: [
+            "Paso 1: Agregue documentos PDF confidenciales.",
+            "Paso 2: Configure la clave pública o contraseña.",
+            "Paso 3: Genere y descargue la imagen portadora.",
+          ],
+        },
+        {
+          title: "Ocultar Archivos EXE Dentro de una Imagen",
+          desc: "Ocultación de archivos ejecutables",
+          src: "/videos/pt5.mp4",
+          difficulty: "Avanzado",
+          steps: [
+            "Paso 1: Agregue binarios al contenedor.",
+            "Paso 2: Verifique los límites de tamaño y selle el contenedor.",
+          ],
+        },
+        {
+          title: "Comparar Imagen Normal vs Imagen Codificada",
+          desc: "Análisis visual y a nivel de bits",
+          src: "/videos/ppt6.mp4",
+          difficulty: "Experto",
+          steps: [
+            "Paso 1: Abra el Comparador Forense.",
+            "Paso 2: Cargue la imagen original y la modificada.",
+            "Paso 3: Use el control deslizante y examine métricas PSNR/MSE.",
+          ],
+        },
       ];
     case 'French':
       return [
-        { title: "Cacher du Texte Secret dans une Image", desc: "Apprenez la stéganographie de texte de base", src: "/videos/pt1.mp4", difficulty: "Débutant" },
-        { title: "Cacher des Images Secrètes dans une Autre Image", desc: "Dissimulation avancée d'image dans une image", src: "/videos/pt2.mp4", difficulty: "Intermédiaire" },
-        { title: "Cacher des Fichiers MP3 dans une Image", desc: "Dissimulez des fichiers audio en toute sécurité", src: "/videos/pt3.mp4", difficulty: "Intermédiaire" },
-        { title: "Cacher des Fichiers PDF dans une Image", desc: "Techniques de stéganographie de documents", src: "/videos/pt4.mp4", difficulty: "Avancé" },
-        { title: "Cacher des Fichiers EXE dans une Image", desc: "Dissimulation de fichiers exécutables", src: "/videos/pt5.mp4", difficulty: "Avancé" },
-        { title: "Comparer une Image Normale et une Image Encodée", desc: "Analyse visuelle et au niveau du bit", src: "/videos/ppt6.mp4", difficulty: "Expert" },
+        {
+          title: "Cacher du Texte Secret dans une Image",
+          desc: "Apprenez la stéganographie de texte de base",
+          src: "/videos/pt1.mp4",
+          difficulty: "Débutant",
+          steps: [
+            "Étape 1: Ouvrez l'onglet Masquer et téléchargez une image PNG.",
+            "Étape 2: Saisissez votre message confidentiel.",
+            "Étape 3: Définissez une phrase secrète.",
+            "Étape 4: Cliquez sur Masquer et téléchargez l'image stéganographique.",
+          ],
+        },
+        {
+          title: "Cacher des Images Secrètes dans une Autre Image",
+          desc: "Dissimulation avancée d'image dans une image",
+          src: "/videos/pt2.mp4",
+          difficulty: "Intermédiaire",
+          steps: [
+            "Étape 1: Sélectionnez Fichiers Secrets / GhostVault.",
+            "Étape 2: Ajoutez les images secrètes à encapsuler.",
+            "Étape 3: Chiffrez et exportez.",
+          ],
+        },
+        {
+          title: "Cacher des Fichiers MP3 dans une Image",
+          desc: "Dissimulez des fichiers audio en toute sécurité",
+          src: "/videos/pt3.mp4",
+          difficulty: "Intermédiaire",
+          steps: [
+            "Étape 1: Préparez votre fichier audio.",
+            "Étape 2: Chargez une photo de couverture adaptée.",
+            "Étape 3: Chiffrez avec AES-GCM.",
+          ],
+        },
+        {
+          title: "Cacher des Fichiers PDF dans une Image",
+          desc: "Techniques de stéganographie de documents",
+          src: "/videos/pt4.mp4",
+          difficulty: "Avancé",
+          steps: [
+            "Étape 1: Ajoutez vos documents PDF confidentiels.",
+            "Étape 2: Choisissez une clé ou une phrase secrète.",
+            "Étape 3: Téléchargez l'image résultante.",
+          ],
+        },
+        {
+          title: "Cacher des Fichiers EXE dans une Image",
+          desc: "Dissimulation de fichiers exécutables",
+          src: "/videos/pt5.mp4",
+          difficulty: "Avancé",
+          steps: [
+            "Étape 1: Déposez les exécutables dans le GhostVault.",
+            "Étape 2: Vérifiez les limites et générez l'image.",
+          ],
+        },
+        {
+          title: "Comparer une Image Normale et une Image Encodée",
+          desc: "Analyse visuelle et au niveau du bit",
+          src: "/videos/ppt6.mp4",
+          difficulty: "Expert",
+          steps: [
+            "Étape 1: Ouvrez le Comparateur Forensique.",
+            "Étape 2: Chargez les images originale et modifiée.",
+            "Étape 3: Utilisez le curseur et vérifiez les métriques PSNR.",
+          ],
+        },
       ];
     default:
       return [
-        { title: "Hide Secret Text Inside an Image", desc: "Learn basic text steganography", src: "/videos/pt1.mp4", difficulty: "Beginner" },
-        { title: "Hide Secret Images Inside Another Image", desc: "Advanced image-in-image hiding", src: "/videos/pt2.mp4", difficulty: "Intermediate" },
-        { title: "Hide MP3 Files Inside an Image", desc: "Conceal audio files securely", src: "/videos/pt3.mp4", difficulty: "Intermediate" },
-        { title: "Hide PDF Files Inside an Image", desc: "Document steganography techniques", src: "/videos/pt4.mp4", difficulty: "Advanced" },
-        { title: "Hide EXE Files Inside an Image", desc: "Executable file concealment", src: "/videos/pt5.mp4", difficulty: "Advanced" },
-        { title: "Compare Normal Image vs Encoded Image", desc: "Visual and bit-level analysis", src: "/videos/ppt6.mp4", difficulty: "Expert" },
+        {
+          title: "Hide Secret Text Inside an Image",
+          desc: "Learn basic text steganography",
+          src: "/videos/pt1.mp4",
+          difficulty: "Beginner",
+          steps: [
+            "Step 1: Open the Hide Secret tab and drop or select an uncompressed cover photo (e.g. PNG).",
+            "Step 2: Enter or paste your confidential text message into the secret payload field.",
+            "Step 3: Choose an authenticated passphrase or generate a cryptographically strong 128-bit key.",
+            "Step 4: Click 'Conceal Payload & Seal Stego-Image' to encode the encrypted bytes into RGB LSBs.",
+            "Step 5: Download the resulting stego-image and verify its SHA-256 integrity hash.",
+          ],
+        },
+        {
+          title: "Hide Secret Images Inside Another Image",
+          desc: "Advanced image-in-image hiding",
+          src: "/videos/pt2.mp4",
+          difficulty: "Intermediate",
+          steps: [
+            "Step 1: In Hide Secret mode, select 'Secret Files / GhostVault' as your payload source.",
+            "Step 2: Drop the confidential image(s) you wish to embed into the container.",
+            "Step 3: Load a larger carrier cover photo with sufficient pixel capacity for the payload.",
+            "Step 4: Set a passphrase to seal the container with AES-GCM-256 and PBKDF2 (600k rounds).",
+            "Step 5: Export the carrier PNG and inspect the difference heatmap in Forensic Comparator.",
+          ],
+        },
+        {
+          title: "Hide MP3 Files Inside an Image",
+          desc: "Conceal audio files securely",
+          src: "/videos/pt3.mp4",
+          difficulty: "Intermediate",
+          steps: [
+            "Step 1: Prepare your secret audio file (.mp3, .wav, or .m4a) and check its byte size.",
+            "Step 2: Upload a high-resolution cover photo that provides adequate carrier capacity.",
+            "Step 3: Add the audio file to the GhostVault package and configure encryption parameters.",
+            "Step 4: Seal the image. QuietSend packs the audio into an authenticated ZIP payload container.",
+            "Step 5: On the Decode tab, extract the carrier to unpack and save the original MP3 bitstream.",
+          ],
+        },
+        {
+          title: "Hide PDF Files Inside an Image",
+          desc: "Document steganography techniques",
+          src: "/videos/pt4.mp4",
+          difficulty: "Advanced",
+          steps: [
+            "Step 1: Select confidential PDF documents or business records to conceal.",
+            "Step 2: Drop the PDF files into the GhostVault dropzone in QuietSend Hide mode.",
+            "Step 3: Choose either symmetric AES-GCM or ECDH P-256 recipient public key armor.",
+            "Step 4: Encode the bits into the spatial carrier canvas without modifying alpha channels.",
+            "Step 5: Deliver the photo. The recipient can decode with their passphrase or private key.",
+          ],
+        },
+        {
+          title: "Hide EXE Files Inside an Image",
+          desc: "Executable file concealment",
+          src: "/videos/pt5.mp4",
+          difficulty: "Advanced",
+          steps: [
+            "Step 1: Drop executable binaries (.exe, .dll, or .iso) into the multi-file vault.",
+            "Step 2: Ensure the total payload does not exceed the 50 MB total archive safety limit.",
+            "Step 3: Set an optional honey-vault decoy password if deniable encryption is required.",
+            "Step 4: Execute the spatial concealment and download the stamped PNG carrier.",
+            "Step 5: Verify the extracted executable CRC32 checksum matches the original binary.",
+          ],
+        },
+        {
+          title: "Compare Normal Image vs Encoded Image",
+          desc: "Visual and bit-level analysis",
+          src: "/videos/ppt6.mp4",
+          difficulty: "Expert",
+          steps: [
+            "Step 1: Navigate to the Forensic Comparator tab in the main QuietSend enclave.",
+            "Step 2: Drop the original pristine cover photo in Slot 1 and the stego-carrier in Slot 2.",
+            "Step 3: Use the interactive Split Comparison Slider (or Arrow keys) to scan visual fidelity.",
+            "Step 4: Review objective metrics including MSE (Mean Squared Error) and PSNR (Peak Signal-to-Noise Ratio).",
+            "Step 5: Inspect individual RGB bitplanes (Bit 0 to Bit 7) to visualize spatial noise distribution.",
+          ],
+        },
       ];
   }
 };
@@ -655,5 +973,265 @@ export const getAboutData = (lang: Language): LocalizedAboutData => {
           ['LICENSE', 'Open Source Reference'],
         ]
       };
+  }
+};
+
+// ── Threat model ──────────────────────────────────────────────────────────────
+//
+// Stated plainly because the honest limits of this tool are not obvious from
+// using it. In particular: LSB steganography resists a casual look, not
+// statistical steganalysis, and that is true at the DEFAULT density -- RS and
+// sample-pair analysis were designed against exactly this kind of low-rate LSB
+// replacement. Anyone deciding whether to rely on QuietSend in a situation that
+// matters needs to read that before they do, not after.
+
+interface ThreatItem {
+  title: string;
+  body: string;
+}
+
+interface ThreatModelDoc {
+  banner: string;
+  protectsHeading: string;
+  protects: ThreatItem[];
+  limitsHeading: string;
+  limits: ThreatItem[];
+  footer: string;
+}
+
+const renderThreatModel = (doc: ThreatModelDoc): React.ReactNode => (
+  <div className="space-y-5">
+    <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-200 text-xs leading-relaxed">
+      ⚠️ {doc.banner}
+    </div>
+
+    <div className="space-y-3">
+      <h4 className="text-white font-bold text-base">{doc.protectsHeading}</h4>
+      {doc.protects.map((it) => (
+        <div key={it.title} className="card-inset p-3.5 space-y-1">
+          <p className="font-bold text-[#52b788] text-sm">{it.title}</p>
+          <p className="text-xs leading-relaxed">{it.body}</p>
+        </div>
+      ))}
+    </div>
+
+    <div className="space-y-3">
+      <h4 className="text-white font-bold text-base">{doc.limitsHeading}</h4>
+      {doc.limits.map((it) => (
+        <div key={it.title} className="card-inset p-3.5 space-y-1 border-l-2 border-l-[#e57373]">
+          <p className="font-bold text-[#e57373] text-sm">{it.title}</p>
+          <p className="text-xs leading-relaxed">{it.body}</p>
+        </div>
+      ))}
+    </div>
+
+    <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/25 text-red-200 text-xs leading-relaxed font-bold">
+      {doc.footer}
+    </div>
+  </div>
+);
+
+const THREAT_MODEL_EN: ThreatModelDoc = {
+  banner: 'Read this before relying on QuietSend for anything that matters. It explains what this tool protects you from, and what it does not.',
+  protectsHeading: 'What QuietSend protects you from',
+  protects: [
+    {
+      title: 'Services that inspect what you send',
+      body: 'Messaging platforms, email gateways, cloud backup scanners and automated content filters see an ordinary photo or audio file. The message inside is not visible to them.',
+    },
+    {
+      title: 'Someone glancing at your device',
+      body: 'A person scrolling your gallery sees a normal picture. Nothing marks it as carrying anything.',
+    },
+    {
+      title: 'Offline attacks on the contents',
+      body: 'Payloads are sealed with AES-GCM-256 using 600,000 PBKDF2 iterations. Without your passphrase the contents stay sealed, and a wrong passphrase is rejected rather than producing plausible-looking garbage.',
+    },
+  ],
+  limitsHeading: 'What QuietSend does NOT protect you from',
+  limits: [
+    {
+      title: 'Someone who suspects the file and analyses it',
+      body: 'This is the most important limit. QuietSend hides your message from anyone casually looking. It does not hide it from someone who runs statistical steganalysis. Established techniques — RS analysis and sample-pair analysis — detect LSB embedding at any density, including the default. The payload is also written to a contiguous region starting at the beginning of the image, which makes it easier to find still. Assume that an analyst who examines the file can tell something is hidden in it, even if they cannot read it.',
+    },
+    {
+      title: 'A compromised website or host',
+      body: 'Your data never leaves your browser, but the code that handles it is delivered by a web server. Anyone who controls that server, or your DNS, can serve modified JavaScript that captures your passphrase before encryption happens. Browser-based encryption protects your data from the network; it cannot protect you from a hostile delivery server. This is a structural limit of every crypto tool that runs on a web page, not a flaw specific to QuietSend.',
+    },
+    {
+      title: 'Proving who sent something',
+      body: 'Messages encrypted to a public key from the Keyring are confidential to you, but they are not signed. Anyone holding your public key can create an envelope that appears to come from anyone. A decrypted message is not evidence of who sent it.',
+    },
+    {
+      title: 'Compression and re-encoding',
+      body: 'Messaging apps re-encode photos sent from the gallery, which destroys the hidden data completely. Always send the carrier as a file or document attachment. This is a reliability limit, not a security one.',
+    },
+  ],
+  footer: 'If being found to be hiding something is itself dangerous for you, QuietSend is not sufficient protection. Use it for privacy, not for concealment under adversarial scrutiny.',
+};
+
+const THREAT_MODEL_HI: ThreatModelDoc = {
+  banner: 'किसी भी महत्वपूर्ण काम के लिए QuietSend पर भरोसा करने से पहले यह पढ़ें। यह बताता है कि यह उपकरण आपको किससे बचाता है, और किससे नहीं।',
+  protectsHeading: 'QuietSend आपको किससे बचाता है',
+  protects: [
+    {
+      title: 'आपकी भेजी चीज़ों की जाँच करने वाली सेवाएँ',
+      body: 'मैसेजिंग प्लेटफ़ॉर्म, ईमेल गेटवे, क्लाउड बैकअप स्कैनर और स्वचालित फ़िल्टर को सिर्फ़ एक सामान्य फ़ोटो या ऑडियो फ़ाइल दिखती है। अंदर छिपा संदेश उन्हें नहीं दिखता।',
+    },
+    {
+      title: 'आपके डिवाइस पर नज़र डालने वाला कोई व्यक्ति',
+      body: 'गैलरी देखने वाले को एक सामान्य तस्वीर दिखती है। उस पर ऐसा कुछ नहीं जो बताए कि उसमें कुछ छिपा है।',
+    },
+    {
+      title: 'सामग्री पर ऑफ़लाइन हमले',
+      body: 'पेलोड AES-GCM-256 और 600,000 PBKDF2 पुनरावृत्तियों से बंद किया जाता है। आपके पासवर्ड के बिना सामग्री बंद रहती है, और ग़लत पासवर्ड स्वीकार नहीं होता।',
+    },
+  ],
+  limitsHeading: 'QuietSend आपको किससे नहीं बचाता',
+  limits: [
+    {
+      title: 'जो फ़ाइल पर शक करके उसका विश्लेषण करे',
+      body: 'यह सबसे महत्वपूर्ण सीमा है। QuietSend आपके संदेश को सामान्य नज़र से छिपाता है। यह उससे नहीं छिपाता जो सांख्यिकीय स्टेग्नैलिसिस चलाता है। स्थापित तकनीकें — RS विश्लेषण और सैंपल-पेयर विश्लेषण — किसी भी घनत्व पर LSB एम्बेडिंग का पता लगा लेती हैं, डिफ़ॉल्ट पर भी। पेलोड छवि की शुरुआत से एक लगातार क्षेत्र में लिखा जाता है, जिससे इसे ढूँढना और आसान हो जाता है। मान लें कि फ़ाइल की जाँच करने वाला बता सकता है कि उसमें कुछ छिपा है, भले ही वह उसे पढ़ न सके।',
+    },
+    {
+      title: 'समझौता की गई वेबसाइट या होस्ट',
+      body: 'आपका डेटा कभी ब्राउज़र से बाहर नहीं जाता, लेकिन उसे संभालने वाला कोड एक वेब सर्वर से आता है। जो उस सर्वर या आपके DNS को नियंत्रित करता है, वह बदला हुआ JavaScript भेज सकता है जो एन्क्रिप्शन से पहले ही आपका पासवर्ड चुरा ले। ब्राउज़र-आधारित एन्क्रिप्शन आपके डेटा को नेटवर्क से बचाता है; शत्रुतापूर्ण वितरण सर्वर से नहीं। यह हर वेब-पेज क्रिप्टो उपकरण की संरचनात्मक सीमा है।',
+    },
+    {
+      title: 'यह साबित करना कि किसने भेजा',
+      body: 'कीरिंग की सार्वजनिक कुंजी से एन्क्रिप्ट किए संदेश आपके लिए गोपनीय हैं, लेकिन उन पर हस्ताक्षर नहीं होते। आपकी सार्वजनिक कुंजी रखने वाला कोई भी ऐसा लिफ़ाफ़ा बना सकता है जो किसी के भी नाम से आया लगे।',
+    },
+    {
+      title: 'संपीड़न और पुनः-एन्कोडिंग',
+      body: 'मैसेजिंग ऐप्स गैलरी से भेजी फ़ोटो को दोबारा एन्कोड करते हैं, जिससे छिपा डेटा पूरी तरह नष्ट हो जाता है। वाहक को हमेशा फ़ाइल या दस्तावेज़ के रूप में भेजें।',
+    },
+  ],
+  footer: 'अगर आपके लिए यह पता चलना ही ख़तरनाक है कि आप कुछ छिपा रहे हैं, तो QuietSend पर्याप्त सुरक्षा नहीं है। इसे निजता के लिए इस्तेमाल करें, कड़ी जाँच के बीच छिपाव के लिए नहीं।',
+};
+
+const THREAT_MODEL_KN: ThreatModelDoc = {
+  banner: 'ಮುಖ್ಯವಾದ ಯಾವುದಕ್ಕೂ QuietSend ಅನ್ನು ನಂಬುವ ಮೊದಲು ಇದನ್ನು ಓದಿ. ಈ ಸಾಧನ ನಿಮ್ಮನ್ನು ಯಾವುದರಿಂದ ರಕ್ಷಿಸುತ್ತದೆ ಮತ್ತು ಯಾವುದರಿಂದ ರಕ್ಷಿಸುವುದಿಲ್ಲ ಎಂದು ಇದು ವಿವರಿಸುತ್ತದೆ.',
+  protectsHeading: 'QuietSend ನಿಮ್ಮನ್ನು ಯಾವುದರಿಂದ ರಕ್ಷಿಸುತ್ತದೆ',
+  protects: [
+    {
+      title: 'ನೀವು ಕಳುಹಿಸುವುದನ್ನು ಪರಿಶೀಲಿಸುವ ಸೇವೆಗಳು',
+      body: 'ಮೆಸೇಜಿಂಗ್ ವೇದಿಕೆಗಳು, ಇಮೇಲ್ ಗೇಟ್‌ವೇಗಳು, ಕ್ಲೌಡ್ ಬ್ಯಾಕಪ್ ಸ್ಕ್ಯಾನರ್‌ಗಳಿಗೆ ಸಾಮಾನ್ಯ ಫೋಟೋ ಅಥವಾ ಧ್ವನಿ ಕಡತ ಮಾತ್ರ ಕಾಣುತ್ತದೆ. ಒಳಗಿನ ಸಂದೇಶ ಅವರಿಗೆ ಕಾಣುವುದಿಲ್ಲ.',
+    },
+    {
+      title: 'ನಿಮ್ಮ ಸಾಧನವನ್ನು ನೋಡುವ ಯಾರಾದರೂ',
+      body: 'ಗ್ಯಾಲರಿ ನೋಡುವವರಿಗೆ ಸಾಮಾನ್ಯ ಚಿತ್ರ ಕಾಣುತ್ತದೆ. ಅದರಲ್ಲಿ ಏನಾದರೂ ಅಡಗಿದೆ ಎಂದು ತೋರಿಸುವ ಯಾವ ಗುರುತೂ ಇಲ್ಲ.',
+    },
+    {
+      title: 'ವಿಷಯದ ಮೇಲಿನ ಆಫ್‌ಲೈನ್ ದಾಳಿಗಳು',
+      body: 'ಪೇಲೋಡ್‌ಗಳನ್ನು AES-GCM-256 ಮತ್ತು 600,000 PBKDF2 ಪುನರಾವರ್ತನೆಗಳಿಂದ ಮುಚ್ಚಲಾಗುತ್ತದೆ. ನಿಮ್ಮ ಪಾಸ್‌ವರ್ಡ್ ಇಲ್ಲದೆ ವಿಷಯ ಮುಚ್ಚಿಯೇ ಇರುತ್ತದೆ.',
+    },
+  ],
+  limitsHeading: 'QuietSend ನಿಮ್ಮನ್ನು ಯಾವುದರಿಂದ ರಕ್ಷಿಸುವುದಿಲ್ಲ',
+  limits: [
+    {
+      title: 'ಕಡತವನ್ನು ಶಂಕಿಸಿ ವಿಶ್ಲೇಷಿಸುವವರು',
+      body: 'ಇದು ಅತ್ಯಂತ ಮುಖ್ಯವಾದ ಮಿತಿ. QuietSend ನಿಮ್ಮ ಸಂದೇಶವನ್ನು ಸಾಮಾನ್ಯ ನೋಟದಿಂದ ಮರೆಮಾಡುತ್ತದೆ. ಸಾಂಖ್ಯಿಕ ಸ್ಟೆಗನಾಲಿಸಿಸ್ ನಡೆಸುವವರಿಂದ ಅಲ್ಲ. ಸ್ಥಾಪಿತ ತಂತ್ರಗಳು — RS ವಿಶ್ಲೇಷಣೆ ಮತ್ತು ಸ್ಯಾಂಪಲ್-ಪೇರ್ ವಿಶ್ಲೇಷಣೆ — ಯಾವುದೇ ಸಾಂದ್ರತೆಯಲ್ಲಿ, ಡೀಫಾಲ್ಟ್ ಸೇರಿದಂತೆ, LSB ಅಡಗಿಸುವಿಕೆಯನ್ನು ಪತ್ತೆಹಚ್ಚುತ್ತವೆ. ಪೇಲೋಡ್ ಚಿತ್ರದ ಆರಂಭದಿಂದ ನಿರಂತರ ಪ್ರದೇಶದಲ್ಲಿ ಬರೆಯಲ್ಪಡುತ್ತದೆ, ಇದು ಪತ್ತೆಹಚ್ಚುವಿಕೆಯನ್ನು ಇನ್ನಷ್ಟು ಸುಲಭಗೊಳಿಸುತ್ತದೆ.',
+    },
+    {
+      title: 'ರಾಜಿಯಾದ ಜಾಲತಾಣ ಅಥವಾ ಹೋಸ್ಟ್',
+      body: 'ನಿಮ್ಮ ದತ್ತಾಂಶ ಬ್ರೌಸರ್ ಬಿಟ್ಟು ಹೋಗುವುದಿಲ್ಲ, ಆದರೆ ಅದನ್ನು ನಿರ್ವಹಿಸುವ ಕೋಡ್ ವೆಬ್ ಸರ್ವರ್‌ನಿಂದ ಬರುತ್ತದೆ. ಆ ಸರ್ವರ್ ಅಥವಾ ನಿಮ್ಮ DNS ಅನ್ನು ನಿಯಂತ್ರಿಸುವವರು ಬದಲಾಯಿಸಿದ JavaScript ಕಳುಹಿಸಿ ಎನ್‌ಕ್ರಿಪ್ಶನ್‌ಗೂ ಮೊದಲೇ ನಿಮ್ಮ ಪಾಸ್‌ವರ್ಡ್ ಕದಿಯಬಹುದು. ಇದು ಪ್ರತಿಯೊಂದು ವೆಬ್-ಪುಟ ಕ್ರಿಪ್ಟೋ ಸಾಧನದ ರಚನಾತ್ಮಕ ಮಿತಿ.',
+    },
+    {
+      title: 'ಯಾರು ಕಳುಹಿಸಿದರು ಎಂದು ಸಾಬೀತುಪಡಿಸುವುದು',
+      body: 'ಕೀರಿಂಗ್ ಸಾರ್ವಜನಿಕ ಕೀಲಿಯಿಂದ ಎನ್‌ಕ್ರಿಪ್ಟ್ ಆದ ಸಂದೇಶಗಳು ಗೌಪ್ಯವಾಗಿವೆ, ಆದರೆ ಅವುಗಳಿಗೆ ಸಹಿ ಇಲ್ಲ. ನಿಮ್ಮ ಸಾರ್ವಜನಿಕ ಕೀಲಿ ಇರುವ ಯಾರಾದರೂ ಯಾರ ಹೆಸರಿನಲ್ಲಾದರೂ ಬಂದಂತೆ ಕಾಣುವ ಲಕೋಟೆ ರಚಿಸಬಹುದು.',
+    },
+    {
+      title: 'ಸಂಕುಚನ ಮತ್ತು ಮರು-ಎನ್‌ಕೋಡಿಂಗ್',
+      body: 'ಮೆಸೇಜಿಂಗ್ ಆ್ಯಪ್‌ಗಳು ಗ್ಯಾಲರಿಯಿಂದ ಕಳುಹಿಸಿದ ಫೋಟೋಗಳನ್ನು ಮರು-ಎನ್‌ಕೋಡ್ ಮಾಡುತ್ತವೆ, ಇದರಿಂದ ಅಡಗಿದ ದತ್ತಾಂಶ ಸಂಪೂರ್ಣ ನಾಶವಾಗುತ್ತದೆ. ವಾಹಕವನ್ನು ಯಾವಾಗಲೂ ಕಡತ ಅಥವಾ ದಾಖಲೆಯಾಗಿ ಕಳುಹಿಸಿ.',
+    },
+  ],
+  footer: 'ನೀವು ಏನನ್ನೋ ಅಡಗಿಸುತ್ತಿದ್ದೀರಿ ಎಂದು ಕಂಡುಬರುವುದೇ ನಿಮಗೆ ಅಪಾಯಕಾರಿಯಾದರೆ, QuietSend ಸಾಕಷ್ಟು ರಕ್ಷಣೆಯಲ್ಲ.',
+};
+
+const THREAT_MODEL_ES: ThreatModelDoc = {
+  banner: 'Lea esto antes de confiar en QuietSend para algo importante. Explica de qué le protege esta herramienta y de qué no.',
+  protectsHeading: 'De qué le protege QuietSend',
+  protects: [
+    {
+      title: 'Servicios que inspeccionan lo que envía',
+      body: 'Las plataformas de mensajería, las pasarelas de correo, los escáneres de copias en la nube y los filtros automáticos ven una foto o un archivo de audio corriente. El mensaje que hay dentro no es visible para ellos.',
+    },
+    {
+      title: 'Alguien que echa un vistazo a su dispositivo',
+      body: 'Quien pase por su galería verá una imagen normal. Nada indica que contenga algo.',
+    },
+    {
+      title: 'Ataques sin conexión contra el contenido',
+      body: 'Los datos se sellan con AES-GCM-256 y 600.000 iteraciones de PBKDF2. Sin su contraseña el contenido permanece cerrado, y una contraseña incorrecta se rechaza en lugar de producir basura verosímil.',
+    },
+  ],
+  limitsHeading: 'De qué NO le protege QuietSend',
+  limits: [
+    {
+      title: 'Alguien que sospeche del archivo y lo analice',
+      body: 'Este es el límite más importante. QuietSend oculta su mensaje de quien mire por encima. No lo oculta de quien ejecute esteganálisis estadístico. Técnicas establecidas —el análisis RS y el análisis de pares de muestras— detectan la inserción LSB a cualquier densidad, incluida la predeterminada. Además, los datos se escriben en una región contigua que empieza al principio de la imagen, lo que facilita aún más su localización. Asuma que quien examine el archivo podrá saber que oculta algo, aunque no pueda leerlo.',
+    },
+    {
+      title: 'Un sitio web o servidor comprometido',
+      body: 'Sus datos nunca salen del navegador, pero el código que los maneja lo entrega un servidor web. Quien controle ese servidor, o su DNS, puede servir JavaScript modificado que capture su contraseña antes de que se cifre nada. El cifrado en el navegador protege sus datos de la red; no puede protegerle de un servidor de entrega hostil. Es un límite estructural de toda herramienta criptográfica que se ejecuta en una página web.',
+    },
+    {
+      title: 'Demostrar quién envió algo',
+      body: 'Los mensajes cifrados con una clave pública del llavero son confidenciales para usted, pero no están firmados. Cualquiera que tenga su clave pública puede crear un sobre que parezca venir de cualquier persona.',
+    },
+    {
+      title: 'Compresión y recodificación',
+      body: 'Las aplicaciones de mensajería recodifican las fotos enviadas desde la galería, lo que destruye por completo los datos ocultos. Envíe siempre el portador como archivo o documento adjunto.',
+    },
+  ],
+  footer: 'Si que se descubra que oculta algo ya supone un peligro para usted, QuietSend no es protección suficiente. Úselo para privacidad, no para ocultarse ante un escrutinio adversario.',
+};
+
+const THREAT_MODEL_FR: ThreatModelDoc = {
+  banner: "Lisez ceci avant de confier quoi que ce soit d'important à QuietSend. Ce texte explique ce dont cet outil vous protège, et ce dont il ne vous protège pas.",
+  protectsHeading: 'Ce dont QuietSend vous protège',
+  protects: [
+    {
+      title: 'Les services qui inspectent ce que vous envoyez',
+      body: "Les messageries, les passerelles de courrier, les scanners de sauvegarde et les filtres automatiques ne voient qu'une photo ou un fichier audio ordinaire. Le message qu'il contient leur est invisible.",
+    },
+    {
+      title: 'Un regard posé sur votre appareil',
+      body: "Quelqu'un qui parcourt votre galerie voit une image normale. Rien n'indique qu'elle transporte quelque chose.",
+    },
+    {
+      title: 'Les attaques hors ligne sur le contenu',
+      body: "Les données sont scellées par AES-GCM-256 avec 600 000 itérations PBKDF2. Sans votre mot de passe le contenu reste scellé, et un mot de passe erroné est rejeté plutôt que de produire un résultat plausible.",
+    },
+  ],
+  limitsHeading: 'Ce dont QuietSend ne vous protège PAS',
+  limits: [
+    {
+      title: "Quelqu'un qui soupçonne le fichier et l'analyse",
+      body: "C'est la limite la plus importante. QuietSend dissimule votre message à un regard ordinaire. Il ne le dissimule pas à qui pratique une stéganalyse statistique. Des techniques établies — l'analyse RS et l'analyse par paires d'échantillons — détectent l'insertion LSB à toute densité, y compris celle par défaut. De plus, les données sont écrites dans une zone contiguë commençant au début de l'image, ce qui les rend encore plus faciles à repérer. Partez du principe qu'un analyste examinant le fichier pourra dire qu'il cache quelque chose, même sans pouvoir le lire.",
+    },
+    {
+      title: 'Un site ou un hébergeur compromis',
+      body: "Vos données ne quittent jamais votre navigateur, mais le code qui les traite est livré par un serveur web. Quiconque contrôle ce serveur, ou votre DNS, peut servir un JavaScript modifié qui capture votre mot de passe avant tout chiffrement. Le chiffrement côté navigateur protège vos données du réseau ; il ne peut pas vous protéger d'un serveur de livraison hostile. C'est une limite structurelle de tout outil cryptographique exécuté dans une page web.",
+    },
+    {
+      title: "Prouver qui a envoyé quelque chose",
+      body: "Les messages chiffrés vers une clé publique du trousseau vous sont confidentiels, mais ils ne sont pas signés. Toute personne détenant votre clé publique peut créer une enveloppe qui semble venir de n'importe qui.",
+    },
+    {
+      title: 'Compression et réencodage',
+      body: "Les messageries réencodent les photos envoyées depuis la galerie, ce qui détruit entièrement les données cachées. Envoyez toujours le porteur en pièce jointe, comme fichier ou document.",
+    },
+  ],
+  footer: "Si le simple fait d'être découvert en train de cacher quelque chose est dangereux pour vous, QuietSend n'est pas une protection suffisante. Utilisez-le pour la confidentialité, pas pour la dissimulation sous surveillance adverse.",
+};
+
+export const getThreatModelContent = (lang: Language): React.ReactNode => {
+  switch (lang) {
+    case 'Hindi':   return renderThreatModel(THREAT_MODEL_HI);
+    case 'Kannada': return renderThreatModel(THREAT_MODEL_KN);
+    case 'Spanish': return renderThreatModel(THREAT_MODEL_ES);
+    case 'French':  return renderThreatModel(THREAT_MODEL_FR);
+    default:        return renderThreatModel(THREAT_MODEL_EN);
   }
 };

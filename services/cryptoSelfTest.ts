@@ -104,14 +104,14 @@ function createSyntheticWav(): ArrayBuffer {
 
 type TestBody = () => Promise<string>;
 
-interface TestSpec {
+export interface TestSpec {
   id: string;
   name: string;
   category: TestResultItem['category'];
   run: TestBody;
 }
 
-const TESTS: TestSpec[] = [
+export const TESTS: TestSpec[] = [
   // ── 1. SHA-256, including the pure-JS fallback ────────────────────────────
   {
     id: 'sha256_vectors',

@@ -18,6 +18,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { soundFx } from '../services/soundFx';
+import SkeuoSegmentedControl from './SkeuoSegmentedControl';
 import {
   generateAsymmetricKeyPair,
   getStoredKeyring,
@@ -392,16 +393,14 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
         className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
       >
         <div
-          className="relative w-full max-w-3xl bg-[#080c16] border border-cyan-500/40 rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col max-h-[90vh] pointer-events-auto"
+          className="relative w-full max-w-3xl bg-[#161b25] border border-black/70 border-t-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col max-h-[90vh] pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-r from-blue-950/40 via-purple-950/20 to-transparent">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-black/60 border-b-white/5 bg-[#1a202c]">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-cyan-500 to-indigo-600 p-[1.5px] shadow-lg">
-                <div className="w-full h-full bg-[#0a0d18] rounded-[10px] flex items-center justify-center text-cyan-400">
-                  <Key size={18} />
-                </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/60 border-t-white/20 bg-[#252c3b] text-[#b39ddb] shadow-md">
+                <Key size={17} />
               </div>
               <div>
                 <h3 id="keyring-modal-title" className="text-base font-bold text-white flex items-center gap-2">
@@ -424,30 +423,17 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
             </button>
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex px-6 pt-3 border-b border-white/10 bg-black/40 gap-2" role="tablist">
-            {(
-              [
-                { id: 'identity', label: `My Keypair (${keyring.length})`, icon: <ShieldCheck size={14} />, color: 'cyan' },
-                { id: 'contacts', label: `Contact Public Keys (${contacts.length})`, icon: <UserCheck size={14} />, color: 'purple' },
-                { id: 'diagnostics', label: 'CAVP Diagnostic Suite', icon: <Activity size={14} />, color: 'emerald' },
-              ] as const
-            ).map(({ id, label, icon, color }) => (
-              <button
-                key={id}
-                role="tab"
-                aria-selected={tab === id}
-                onClick={() => { soundFx.playClick(); setTab(id); }}
-                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-                  tab === id
-                    ? `border-${color}-400 text-${color}-300 bg-${color}-500/10 rounded-t-lg`
-                    : 'border-transparent text-slate-400 hover:text-white'
-                }`}
-              >
-                {icon}
-                <span>{label}</span>
-              </button>
-            ))}
+          {/* Tab Navigation with Smooth Sliding Cap */}
+          <div className="p-3 border-b border-black/50 border-b-white/5 bg-[#121620]">
+            <SkeuoSegmentedControl
+              options={[
+                { id: 'identity', label: `My Keypair (${keyring.length})`, icon: <ShieldCheck size={14} />, activeColor: 'purple' },
+                { id: 'contacts', label: `Contact Public Keys (${contacts.length})`, icon: <UserCheck size={14} />, activeColor: 'purple' },
+                { id: 'diagnostics', label: 'CAVP Diagnostic Suite', icon: <Activity size={14} />, activeColor: 'purple' },
+              ]}
+              value={tab}
+              onChange={(val) => setTab(val as 'identity' | 'contacts' | 'diagnostics')}
+            />
           </div>
 
           {/* Tab Content */}
@@ -533,7 +519,7 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
                     <button
                       onClick={handleGenerateKey}
                       disabled={isGenerating}
-                      className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                      className="btn-iris !px-4 !py-2 !text-xs cursor-pointer shrink-0"
                     >
                       {isGenerating ? <RefreshCw className="animate-spin" size={13} /> : <Sparkles size={13} />}
                       <span>Generate</span>
@@ -542,25 +528,25 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
                 </div>
 
                 {/* Encrypted Backup & Restore Bar */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs gap-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 rounded-xl card-inset text-xs gap-3 border-l-2 border-l-[#e0a96d]">
                   <div className="space-y-0.5">
-                    <p className="text-amber-300 font-bold flex items-center gap-1.5">
+                    <p className="text-[#e0a96d] font-bold flex items-center gap-1.5">
                       <Lock size={12} />
                       Encrypted Keyring Backup
                     </p>
-                    <p className="text-slate-400">Backups are AES-GCM-256 encrypted — a passphrase is required.</p>
+                    <p className="text-[#a0aec0]">Backups are AES-GCM-256 encrypted — a passphrase is required.</p>
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <button
                       onClick={() => { soundFx.playClick(); setBackupError(''); setBackupDialog('export'); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white font-bold transition-all cursor-pointer"
+                      className="btn btn-secondary !px-3 !py-1.5 !text-xs cursor-pointer"
                     >
                       <Download size={13} />
                       <span>Export</span>
                     </button>
                     <button
                       onClick={() => { soundFx.playClick(); setBackupError(''); setBackupDialog('import'); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white font-bold transition-all cursor-pointer"
+                      className="btn btn-secondary !px-3 !py-1.5 !text-xs cursor-pointer"
                     >
                       <Upload size={13} />
                       <span>Restore</span>
@@ -573,9 +559,9 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
             {tab === 'contacts' && (
               <div className="space-y-6">
                 {/* Add Contact Form */}
-                <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-3">
-                  <h5 className="text-xs font-bold uppercase tracking-wider text-purple-300 flex items-center gap-2">
-                    <Plus size={14} className="text-purple-400" />
+                <div className="p-4 rounded-xl card-inset space-y-3">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-[#b39ddb] flex items-center gap-2">
+                    <Plus size={14} className="text-[#b39ddb]" />
                     <span>Import Recipient's Public Key</span>
                   </h5>
 
@@ -587,7 +573,7 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
                       placeholder="Contact Name (e.g. Alice, Project Lead)"
                       value={contactName}
                       onChange={(e) => setContactName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/15 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-400"
+                      className="field text-xs"
                     />
                     <label htmlFor="contact-armor" className="sr-only">Contact public key armor</label>
                     <textarea
@@ -596,14 +582,14 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
                       value={contactArmor}
                       onChange={(e) => setContactArmor(e.target.value)}
                       rows={3}
-                      className="w-full p-2.5 rounded-lg bg-black/60 border border-white/15 text-xs font-mono text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-400 resize-none"
+                      className="field field-mono text-xs resize-none"
                     />
                     {contactError && (
                       <p className="text-xs text-red-400 font-semibold" role="alert">{contactError}</p>
                     )}
                     <button
                       onClick={handleAddContact}
-                      className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                      className="btn-iris !px-4 !py-2 !text-xs cursor-pointer"
                     >
                       <UserCheck size={13} />
                       <span>Save Contact Public Key</span>
@@ -673,13 +659,13 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
                     <button
                       onClick={handleRunSelfTest}
                       disabled={isRunningTest}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/30 cursor-pointer"
+                      className="btn-primary !py-2 !px-4 !text-xs cursor-pointer"
                     >
                       <RefreshCw className={isRunningTest ? 'animate-spin' : ''} size={14} />
                       <span>{isRunningTest ? 'Running Vectors...' : 'Execute Self-Tests'}</span>
                     </button>
                   </div>
-                  <p className="text-xs text-slate-300">
+                  <p className="text-xs text-[#a0aec0]">
                     Executes real-time mathematical validation against AES-GCM-256, ECDH P-256 + HKDF-SHA-256, WAV audio LSB injection, PKZIP archives, and dual-vault deniability.
                   </p>
                 </div>
@@ -690,7 +676,7 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
                       <span className="font-bold text-white">
                         Diagnostic Results: {testReport.passedTests} / {testReport.totalTests} Passed
                       </span>
-                      <span className="text-emerald-400 font-bold">
+                      <span className="text-[#52b788] font-bold">
                         Completed in {testReport.totalDurationMs} ms
                       </span>
                     </div>
@@ -699,21 +685,21 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
                       {testReport.results.map((r) => (
                         <div
                           key={r.id}
-                          className="p-3 rounded-xl bg-black/50 border border-white/10 flex items-start justify-between gap-4 text-xs font-mono"
+                          className="p-3 rounded-xl card-inset flex items-start justify-between gap-4 text-xs font-mono"
                         >
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               {r.status === 'passed' ? (
-                                <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                                <CheckCircle2 size={14} className="text-[#52b788] shrink-0" />
                               ) : (
-                                <AlertCircle size={14} className="text-red-400 shrink-0" />
+                                <AlertCircle size={14} className="text-[#e57373] shrink-0" />
                               )}
                               <span className="font-bold text-white">{r.name}</span>
                             </div>
-                            <p className="text-[11px] text-slate-400 font-sans">{r.details}</p>
+                            <p className="text-[11px] text-[#a0aec0] font-sans">{r.details}</p>
                           </div>
 
-                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-white/5 text-cyan-300 border border-white/10 shrink-0">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#141a24] text-[#64b5f6] border border-black/40 shadow-inner shrink-0">
                             {r.latencyMs} ms
                           </span>
                         </div>
@@ -726,14 +712,14 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
           </div>
 
           {/* Modal Footer */}
-          <div className="px-6 py-4 border-t border-white/10 bg-black/60 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <ShieldCheck size={14} className="text-emerald-400" />
+          <div className="px-6 py-3.5 border-t border-black/60 border-t-white/5 bg-[#121620] flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-[#718096] font-mono">
+              <ShieldCheck size={14} className="text-[#52b788]" />
               <span>Client-Side Cryptographic Enclave — keys never leave this device</span>
             </div>
             <button
               onClick={() => { soundFx.playClick(); onClose(); }}
-              className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition-all cursor-pointer"
+              className="btn btn-secondary !px-5 !py-2 !text-xs cursor-pointer"
             >
               Close Studio
             </button>

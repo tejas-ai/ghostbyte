@@ -28,7 +28,11 @@ class SoundFxEngine {
 
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
-    localStorage.setItem('quietsend_sound_muted', String(this.isMuted));
+    try {
+      localStorage.setItem('quietsend_sound_muted', String(this.isMuted));
+    } catch {
+      // Safe-ignore storage exceptions in private browsing / sandboxed contexts
+    }
     if (!this.isMuted) {
       this.playClick();
     }
@@ -39,8 +43,19 @@ class SoundFxEngine {
     return this.isMuted;
   }
 
+  private triggerHaptic(pattern: number | number[] = 10) {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try {
+        navigator.vibrate(pattern);
+      } catch {
+        // Safe-ignore vibration policy restrictions
+      }
+    }
+  }
+
   // Tactical subtle click
   public playClick() {
+    this.triggerHaptic(8);
     if (this.isMuted) return;
     try {
       this.initContext();
@@ -94,6 +109,7 @@ class SoundFxEngine {
 
   // Successful encryption / decryption chime
   public playSuccess() {
+    this.triggerHaptic([12, 35, 20]);
     if (this.isMuted) return;
     try {
       this.initContext();
@@ -122,6 +138,7 @@ class SoundFxEngine {
 
   // Error alert tone
   public playError() {
+    this.triggerHaptic([30, 40, 30]);
     if (this.isMuted) return;
     try {
       this.initContext();
@@ -147,6 +164,7 @@ class SoundFxEngine {
 
   // Scanner frequency sweep (for comparator)
   public playScan() {
+    this.triggerHaptic(10);
     if (this.isMuted) return;
     try {
       this.initContext();
@@ -167,6 +185,58 @@ class SoundFxEngine {
 
       osc.start(now);
       osc.stop(now + 0.2);
+    } catch {}
+  }
+
+  // Smooth tactile mechanical slide sound
+  public playSlide() {
+    this.triggerHaptic(10);
+    if (this.isMuted) return;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, now);
+      osc.frequency.exponentialRampToValueAtTime(320, now + 0.06);
+
+      gain.gain.setValueAtTime(0.05, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.06);
+    } catch {}
+  }
+
+  // Soft physical haptic thud on drop / mount
+  public playThud() {
+    this.triggerHaptic(16);
+    if (this.isMuted) return;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(50, now + 0.08);
+
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.08);
     } catch {}
   }
 }

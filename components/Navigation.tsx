@@ -1,145 +1,157 @@
-import React from 'react';
-import { useLanguage } from '../contexts/LanguageContext';
-import type { TabId } from '../types';
+import React, { useState } from 'react';
+import {
+  ShieldCheck,
+  Key,
+  Share2,
+  SlidersHorizontal,
+  Lock,
+  Unlock,
+  Settings as SettingsIcon,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
+import { useMode } from '../contexts/ModeContext';
 import { soundFx } from '../services/soundFx';
-import { Lock, Unlock, SlidersHorizontal, Settings as SettingsIcon, ShieldCheck, Key, Share2 } from 'lucide-react';
+import SkeuoSegmentedControl from './SkeuoSegmentedControl';
+import type { TabId } from '../types';
 
 interface NavigationProps {
-  active?: TabId;
-  onTab?: (t: TabId) => void;
+  active: TabId;
+  onTab: (t: TabId) => void;
   onOpenKeyring?: () => void;
   onOpenGuide?: () => void;
 }
 
-const tabs: { id: TabId; labelKey: 'encode' | 'decode' | 'forensics' | 'settings'; icon: React.ReactNode; activeGradient: string; activeBorder: string }[] = [
-  {
-    id: 'encoder',
-    labelKey: 'encode',
-    icon: <Lock size={15} strokeWidth={2.4} />,
-    activeGradient: 'bg-gradient-to-r from-blue-600 via-cyan-600 to-indigo-600',
-    activeBorder: 'border-cyan-400/50',
-  },
-  {
-    id: 'decoder',
-    labelKey: 'decode',
-    icon: <Unlock size={15} strokeWidth={2.4} />,
-    activeGradient: 'bg-gradient-to-r from-purple-600 via-pink-600 to-fuchsia-600',
-    activeBorder: 'border-pink-400/50',
-  },
-  {
-    id: 'forensics',
-    labelKey: 'forensics',
-    icon: <SlidersHorizontal size={15} strokeWidth={2.4} />,
-    activeGradient: 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600',
-    activeBorder: 'border-emerald-400/50',
-  },
-  {
-    id: 'settings',
-    labelKey: 'settings',
-    icon: <SettingsIcon size={15} strokeWidth={2.4} />,
-    activeGradient: 'bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600',
-    activeBorder: 'border-amber-400/50',
-  },
+const PRO_TABS: { id: TabId; label: string; icon: React.ReactNode; color: 'green' | 'blue' | 'amber' | 'purple' }[] = [
+  { id: 'encoder',   label: 'Hide',     icon: <Lock size={14} strokeWidth={2.2} />, color: 'green' },
+  { id: 'decoder',   label: 'Reveal',   icon: <Unlock size={14} strokeWidth={2.2} />, color: 'blue' },
+  { id: 'forensics', label: 'Inspect',  icon: <SlidersHorizontal size={14} strokeWidth={2.2} />, color: 'amber' },
+  { id: 'settings',  label: 'Settings', icon: <SettingsIcon size={14} strokeWidth={2.2} />, color: 'purple' },
+];
+
+const SIMPLE_TABS: { id: TabId; label: string; icon: React.ReactNode; color: 'green' | 'blue' | 'amber' | 'purple' }[] = [
+  { id: 'encoder',  label: 'Hide',     icon: <Lock size={14} strokeWidth={2.2} />, color: 'green' },
+  { id: 'decoder',  label: 'Reveal',   icon: <Unlock size={14} strokeWidth={2.2} />, color: 'blue' },
+  { id: 'settings', label: 'Settings', icon: <SettingsIcon size={14} strokeWidth={2.2} />, color: 'purple' },
 ];
 
 export default function Navigation({ active, onTab, onOpenKeyring, onOpenGuide }: NavigationProps) {
-  const { t } = useLanguage();
+  const { toggleMode, isPro } = useMode();
+  const [isMuted, setIsMuted] = useState(() => soundFx.getMuted());
+  const tabs = isPro ? PRO_TABS : SIMPLE_TABS;
 
-  const currentTab = active || 'encoder';
-
-  const handleSelectTab = (id: TabId) => {
+  const select = (id: TabId) => {
     soundFx.playClick();
-    onTab?.(id);
+    onTab(id);
   };
 
-  const getLabel = (key: 'encode' | 'decode' | 'forensics' | 'settings') => {
-    switch (key) {
-      case 'encode':   return t.nav.encode    || 'Encode';
-      case 'decode':   return t.nav.decode    || 'Decode';
-      case 'forensics': return t.nav.forensics || 'Forensics';
-      case 'settings': return t.nav.settings  || 'Settings';
-    }
+  const handleSoundToggle = () => {
+    const nextMuted = soundFx.toggleMute();
+    setIsMuted(nextMuted);
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-[#070a12]/85 backdrop-blur-2xl border-b border-white/[0.12] shadow-xl">
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-cyan-500 to-indigo-600 p-[1.5px] shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_4px_10px_rgba(0,0,0,0.5)]">
-            <div className="w-full h-full bg-[#0a0d18] rounded-[10px] flex items-center justify-center text-cyan-400">
-              <ShieldCheck size={20} strokeWidth={2.4} />
-            </div>
+    <header className="sticky top-0 z-50 w-full border-b border-black/70 bg-[#141822] shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
+      {/* Top highlight chamfer */}
+      <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+
+      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+        {/* Brand: Physical Milled Badge */}
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/60 border-t-white/20 bg-gradient-to-b from-[#252c3b] to-[#171c26] shadow-[0_2px_5px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15)]">
+            <ShieldCheck size={16} strokeWidth={2.4} className="text-[#52b788]" />
           </div>
-          <div>
-            <div className="text-base font-black tracking-tight font-sans flex items-center gap-2">
-              <span className="text-gradient-harsh-blue font-black text-lg">QuietSend</span>
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md glass-pill-3d text-cyan-300">
-                v3.0 PRO
+
+          <div className="leading-none">
+            <div className="flex items-center gap-1.5">
+              <span className="font-sans text-[16px] font-extrabold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                QuietSend
+              </span>
+              <span className="rounded border border-black/50 border-t-white/10 bg-[#1c222e] px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#a0aec0] shadow-[inset_0_1px_2px_rgba(0,0,0,0.6)]">
+                3.0
               </span>
             </div>
-            <div className="text-[10px] text-slate-400 font-mono font-bold tracking-wider uppercase leading-none">
-              Zero-Server Steganography
+            <div className="eyebrow mt-0.5 text-[9px] text-[#718096]">
+              {isPro ? 'Pro Telemetry Deck' : 'Air-Gapped Privacy'}
             </div>
           </div>
         </div>
 
-        {/* Center Segmented Tabs */}
-        <nav aria-label="Main navigation" className="flex items-center p-1 rounded-xl bg-black/60 border border-white/[0.1] shadow-inner">
-          {tabs.map((tab) => {
-            const isActive = currentTab === tab.id || (tab.id === 'forensics' && currentTab === 'comparator');
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleSelectTab(tab.id)}
-                aria-current={isActive ? 'page' : undefined}
-                aria-label={getLabel(tab.labelKey)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
-                  isActive
-                    ? `${tab.activeGradient} text-white border-t border-b border-l border-r ${tab.activeBorder} shadow-[inset_0_1px_1px_rgba(255,255,255,0.45),0_4px_12px_rgba(0,0,0,0.6)] scale-[1.02]`
-                    : 'text-slate-400 hover:text-white hover:bg-white/[0.06] border border-transparent'
-                }`}
-              >
-                <span aria-hidden="true">{tab.icon}</span>
-                <span className="hidden sm:inline">{getLabel(tab.labelKey)}</span>
-              </button>
-            );
-          })}
-        </nav>
+        {/* Center: Recessed Sunken Tab Tray with Smooth Sliding Cap with Page Unique Colors */}
+        <SkeuoSegmentedControl
+          ariaLabel="Main navigation"
+          role="radiogroup"
+          options={tabs.map((t) => ({
+            id: String(t.id),
+            label: t.label,
+            icon: t.icon,
+            activeColor: t.color,
+          }))}
+          value={
+            !isPro && active !== 'encoder' && active !== 'decoder' && active !== 'settings'
+              ? 'encoder'
+              : active === 'comparator'
+              ? 'forensics'
+              : String(active)
+          }
+          onChange={(val) => select(val as TabId)}
+          className="min-w-[280px] sm:min-w-[340px]"
+        />
 
-        {/* Action Controls & Status */}
-        <div className="flex items-center gap-2">
-          {onOpenKeyring && (
+        {/* Right Cluster: Mechanical Audio Button, Modals & Rocker Switch */}
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Physical Audio Toggle */}
+          <button
+            type="button"
+            onClick={handleSoundToggle}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/60 border-t-white/15 bg-gradient-to-b from-[#242a38] to-[#181d27] text-[#a0aec0] shadow-[0_2px_4px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)] active:translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.6)] cursor-pointer hover:text-white"
+            title={isMuted ? 'Audio feedback muted' : 'Physical audio active'}
+            aria-label={isMuted ? 'Unmute audio' : 'Mute audio'}
+          >
+            {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} className="text-[#52b788]" />}
+          </button>
+
+          {isPro && onOpenKeyring && (
             <button
+              type="button"
               onClick={() => { soundFx.playClick(); onOpenKeyring(); }}
-              aria-label="Open Asymmetric Keyring & Enclave Studio"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-400/30 text-xs font-bold transition-all shadow-sm cursor-pointer"
+              className="btn btn-secondary !h-8 !px-2.5 !py-0 !text-xs cursor-pointer"
+              title="ECDH Keyring"
             >
-              <Key size={13} aria-hidden="true" />
-              <span className="hidden md:inline">Keyring</span>
+              <Key size={13} />
+              <span className="hidden lg:inline">Keyring</span>
             </button>
           )}
 
           {onOpenGuide && (
             <button
+              type="button"
               onClick={() => { soundFx.playClick(); onOpenGuide(); }}
-              aria-label="Open Stealth Messenger Dispatch Guide"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-400/30 text-xs font-bold transition-all shadow-sm cursor-pointer"
+              className="btn btn-secondary !h-8 !px-2.5 !py-0 !text-xs cursor-pointer"
+              title="Dispatch instructions"
             >
-              <Share2 size={13} aria-hidden="true" />
-              <span className="hidden lg:inline">Bypass Guide</span>
+              <Share2 size={13} />
+              <span className="hidden lg:inline">Dispatch</span>
             </button>
           )}
 
-          {/* Status badge: "local processing" is accurate — crypto is client-side.
-              "Air-Gapped" was a lie while the font loaded from fonts.googleapis.com. */}
-          <div
-            className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg glass-pill-3d text-[11px] font-mono font-bold text-emerald-300"
-            aria-label="All processing is local — no data leaves this device"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399]" aria-hidden="true" />
-            <span>Local Processing</span>
-          </div>
+          {/* Physical 2-Position Hardware Sliding Rocker Switch */}
+          <SkeuoSegmentedControl
+            ariaLabel="Operational mode"
+            role="radiogroup"
+            size="sm"
+            options={[
+              { id: 'simple', label: 'Simple', activeColor: 'slate' },
+              { id: 'pro', label: 'Pro', activeColor: 'green' },
+            ]}
+            value={isPro ? 'pro' : 'simple'}
+            onChange={(val) => {
+              if ((val === 'pro' && !isPro) || (val === 'simple' && isPro)) {
+                toggleMode();
+              }
+            }}
+            className="w-28 sm:w-32"
+          />
         </div>
       </div>
     </header>

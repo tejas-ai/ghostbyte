@@ -190,6 +190,66 @@ export interface Translations {
         feedback_placeholder: string;
         feedback_thanks: string;
     };
+    simple_hide: {
+        tagline: string;
+        title: string;
+        desc: string;
+        step1_title: string;
+        step1_desc: string;
+        dropzone_title: string;
+        dropzone_hint: string;
+        lossless_ingested: string;
+        opsec_note: string;
+        step2_title: string;
+        step2_desc: string;
+        tab_message: string;
+        tab_files: string;
+        message_placeholder: string;
+        files_dropzone_title: string;
+        files_dropzone_hint: string;
+        step3_title: string;
+        step3_desc: string;
+        password_placeholder: string;
+        generate_btn: string;
+        copy_btn: string;
+        copied_btn: string;
+        zero_knowledge_note: string;
+        no_password_warning: string;
+        button_hide: string;
+        button_busy: string;
+        export_ready_title: string;
+        export_ready_desc: string;
+        zip_note_title: string;
+        zip_note_desc: string;
+        download_zip: string;
+        download_png: string;
+        reset_btn: string;
+        invalid_image: string;
+        clipboard_error: string;
+    };
+    simple_reveal: {
+        tagline: string;
+        title: string;
+        desc: string;
+        step1_title: string;
+        step1_desc: string;
+        dropzone_title: string;
+        dropzone_hint: string;
+        carrier_ingested: string;
+        step2_title: string;
+        step2_desc: string;
+        password_placeholder: string;
+        button_reveal: string;
+        button_busy: string;
+        success_title: string;
+        decoy_badge: string;
+        copy_message: string;
+        copied: string;
+        download_all: string;
+        auth_failed: string;
+        encrypted_prompt: string;
+        no_payload: string;
+    };
 }
 
 export const dictionaries: Record<Language, Translations> = {
@@ -243,7 +303,7 @@ export const dictionaries: Record<Language, Translations> = {
             entropy_label: 'Passphrase Entropy',
             entropy_weak: 'Weak Passphrase',
             entropy_medium: 'Moderate Security',
-            entropy_strong: 'Cryptographically Strong',
+            entropy_strong: 'High Security (Military Grade)',
             button: 'Inject Secret Data & Generate Stego Image (LSB4)',
             encoding_button: 'Embedding Encrypted Payload (LSB4)...',
             processing: 'Injecting...',
@@ -258,51 +318,51 @@ export const dictionaries: Record<Language, Translations> = {
             jpg_trap_title: 'Carrier Conversion',
             jpg_trap_desc: 'JPG detected. Converting to lossless PNG to preserve data integrity.',
             strength_weak: 'Vulnerable',
-            strength_medium: 'Standard',
-            strength_strong: 'Quiet-Grade',
-            message_placeholder: 'Type your secret mission details here...'
+            strength_medium: 'Moderate Security',
+            strength_strong: 'High Security (Military Grade)',
+            message_placeholder: 'Enter confidential plaintext payload to conceal within the carrier...'
         },
         decoder: {
-            title: 'Forensic Extractor & Bitstream Parser',
-            desc: 'Extract and decrypt hidden confidential payloads from lossless carriers with bit-level precision.',
-            badge: 'BITSTREAM PARSER + PBKDF2 (600K ITERS)',
-            step1: 'Select Carrier File',
-            dropzone_title: 'Drop Steganographic Image Here or Browse Gallery',
-            dropzone_hint: 'Supports lossless PNG, BMP, TIFF photos from your device',
-            dropzone_text: 'Drop Steganographic Image Here or Browse Gallery',
+            title: 'Carrier Recovery & Forensic Extraction',
+            desc: 'Extract and decrypt hidden confidential payloads from stego PNG images and lossless WAV bitstreams with authenticated integrity checks.',
+            badge: 'AUTHENTICATED MULTI-DENSITY EXTRACTION',
+            step1: 'Select Stego Carrier',
+            dropzone_title: 'Drop Stego Image / Audio or Browse',
+            dropzone_hint: 'Supports PNG, BMP, TIFF, ZIP and 16-bit PCM WAV',
+            dropzone_text: 'Drag & drop stego file or click to browse',
             dropzone_browse: 'browse',
-            dropzone_support: 'Lossless PNG, BMP, and TIFF files contain valid payloads',
-            change_image: 'Change Image',
+            dropzone_support: 'Supports PNG, BMP, TIFF, ZIP and WAV',
+            change_image: 'Change Carrier',
             remove_image: 'Remove Carrier',
-            carrier_loaded: 'Carrier loaded · Ready for extraction',
-            ready_to_decode: 'Ready to decode bitstream',
-            step2: 'Enter Passphrase & Decrypt',
-            password_placeholder: 'Enter secret passphrase (leave empty if unencrypted)',
+            carrier_loaded: 'Lossless Carrier Ingested',
+            ready_to_decode: 'Carrier Ready for Forensic Analysis',
+            step2: 'Decryption Authorization',
+            password_placeholder: 'Enter decryption passphrase (if encrypted)',
             button: 'Extract & Decrypt Payload',
-            button_scanning: 'Decrypting Bitstream (600K PBKDF2)...',
+            button_scanning: 'Scanning Bitplanes & Recovering Payload...',
             processing: 'Extracting...',
-            success: 'Payload Successfully Extracted!',
-            success_desc: 'The hidden secret has been successfully reconstructed.',
-            decoded_header: 'Decoded Data',
-            no_text: 'Payload contains binary/non-text data.',
-            data_size: 'Detected data size:',
-            download: 'Save File',
-            extraction_tip: 'Signal Check: If extraction fails, verify that the file was not compressed by social media platforms.',
-            copy_button: 'Copy Text Payload',
+            success: 'Secret Payload Successfully Extracted',
+            success_desc: 'Authenticated cryptographic integrity verified. Zero payload corruption detected.',
+            decoded_header: 'Extracted Plaintext Message',
+            no_text: 'No text message found in payload.',
+            data_size: 'Recovered Payload Size',
+            download: 'Download Decoded File',
+            extraction_tip: 'Authenticated AES-GCM-256 decryption verified via 128-bit authentication tag.',
+            copy_button: 'Copy Secret Message',
             copy_success: 'Copied to Clipboard!',
             save_file: 'Save File',
-            save_all_files: 'Save All Files (Sequential)',
-            extracted_files_count: 'Extracted files from GhostVault archive',
-            raw_binary: 'Raw Binary Bytes',
-            save_binary: 'Save Extracted Binary (.bin)'
+            save_all_files: 'Save All Files',
+            extracted_files_count: 'GhostVault Multi-File Archive',
+            raw_binary: 'Raw Binary Stream Extracted',
+            save_binary: 'Save Encrypted Stream'
         },
         comparator: {
-            title: 'Forensic Noise & Heatmap Analyzer',
-            desc: 'Perform pixel-level differential analysis, calculate PSNR & MSE stealth metrics, and inspect 8-level bit-plane noise distributions.',
-            badge: 'FORENSIC NOISE & HEATMAP ANALYZER',
-            original_label: 'Original Cover Image',
-            modified_label: 'Steganographic / Encoded Image',
-            dropzone_hint: 'Drop cover image or select from gallery',
+            title: 'Forensic Carrier Differential',
+            desc: 'Calculate pixel-level mathematical distortion, Signal-to-Noise Ratio (PSNR) and inspect raw bit-planes.',
+            badge: 'FORENSIC PIXEL ANALYSIS',
+            original_label: 'Original Pristine Carrier',
+            modified_label: 'Stego Modulated Carrier',
+            dropzone_hint: 'Drop image here or browse',
             browse_button: 'Browse Gallery / Files',
             change_image: 'Change Image',
             button: 'Run Forensic Comparative Analysis',
@@ -380,6 +440,66 @@ export const dictionaries: Record<Language, Translations> = {
             feedback_submit: 'Submit Intel Report',
             feedback_placeholder: 'Type your technical feedback, security findings or feature requests...',
             feedback_thanks: 'Thank you for your feedback! Your message has been noted.'
+        },
+        simple_hide: {
+            tagline: 'Client-Side Hardware Memory Sandbox',
+            title: 'Hide Secret Messages & Files in Photos',
+            desc: 'Secured with AES-GCM-256 authenticated encryption. Runs 100% locally in your browser with zero server uploads.',
+            step1_title: 'Cover Photo',
+            step1_desc: 'Choose a photo to host your secret payload',
+            dropzone_title: 'Drop cover photo here, or click to browse',
+            dropzone_hint: 'Supports PNG, JPG, WebP, TIFF, or BMP · Paste with Ctrl + V',
+            lossless_ingested: 'Lossless Photo Ingested',
+            opsec_note: 'Use a personal original camera photo. Public stock photos allow comparison analysis.',
+            step2_title: 'Secret Payload',
+            step2_desc: 'Enter a confidential note or select files',
+            tab_message: 'Secret Note',
+            tab_files: 'Files / Archive',
+            message_placeholder: 'Type confidential message to be encrypted and concealed…',
+            files_dropzone_title: 'Drop files here to package into archive',
+            files_dropzone_hint: 'Supports documents, binaries, PDFs, images, archives',
+            step3_title: 'Passphrase & Protection',
+            step3_desc: 'Encrypted with authenticated AES-GCM-256',
+            password_placeholder: 'Enter or generate secret passphrase',
+            generate_btn: 'Generate',
+            copy_btn: 'Copy',
+            copied_btn: 'Copied',
+            zero_knowledge_note: 'Zero-Knowledge Guarantee: QuietSend stores no keys. Share this passphrase out-of-band.',
+            no_password_warning: 'Conceal without encryption: Payload will be embedded without password protection.',
+            button_hide: 'Conceal Payload & Export Carrier',
+            button_busy: 'Embedding payload into pixels…',
+            export_ready_title: 'Carrier Export Ready',
+            export_ready_desc: 'Visually identical to cover photo.',
+            zip_note_title: 'Important: Dispatch as Document (.ZIP)',
+            zip_note_desc: 'Messengers (WhatsApp, Signal, Telegram) compress gallery photos to lossy JPEG, destroying hidden data. Always send the 1-Click ZIP.',
+            download_zip: 'Download 1-Click PKZIP Package (Recommended)',
+            download_png: 'Download Lossless PNG File',
+            reset_btn: 'Conceal another payload',
+            invalid_image: 'That file could not be opened as an image. Try a PNG, JPG, WebP, TIFF or BMP.',
+            clipboard_error: 'Clipboard permission denied. Please copy manually.'
+        },
+        simple_reveal: {
+            tagline: 'In-Memory Payload Extraction',
+            title: 'Extract Secret Payloads from Media',
+            desc: 'Open and verify confidential messages or files from photos and WAV audio.',
+            step1_title: 'Carrier File',
+            step1_desc: 'Select the received photo or audio file containing hidden data',
+            dropzone_title: 'Drop carrier file here, or click to browse',
+            dropzone_hint: 'Photos, PKZIP packages, and WAV audio · Ctrl + V supported',
+            carrier_ingested: 'Lossless Carrier Ingested',
+            step2_title: 'Passphrase / Decryption Key',
+            step2_desc: 'Enter passphrase provided by sender (leave empty for unencrypted embeds)',
+            password_placeholder: 'Enter decryption passphrase',
+            button_reveal: 'Extract & Reveal Hidden Payload',
+            button_busy: 'Extracting hidden payload…',
+            success_title: 'Payload Successfully Extracted',
+            decoy_badge: 'Decoy Mode: This passphrase unlocked the decoy vault.',
+            copy_message: 'Copy Secret Message',
+            copied: 'Copied!',
+            download_all: 'Download All Files',
+            auth_failed: 'Authentication failed: Passphrase incorrect or tag mismatch.',
+            encrypted_prompt: 'Payload is encrypted: Enter the required secret passphrase above.',
+            no_payload: 'No hidden payload detected. If sent through a messenger, it may have suffered lossy recompression. Request the uncompressed ZIP.'
         }
     },
 
@@ -570,6 +690,66 @@ export const dictionaries: Record<Language, Translations> = {
             feedback_submit: 'इंटेल रिपोर्ट जमा करें',
             feedback_placeholder: 'अपनी तकनीकी प्रतिक्रिया, सुरक्षा निष्कर्ष या सुविधा अनुरोध टाइप करें...',
             feedback_thanks: 'आपकी प्रतिक्रिया के लिए धन्यवाद! आपका संदेश नोट कर लिया गया है।'
+        },
+        simple_hide: {
+            tagline: 'क्लाइंट-साइड हार्डवेयर मेमोरी सैंडबॉक्स',
+            title: 'फ़ोटो में गुप्त संदेश और फ़ाइलें छिपाएं',
+            desc: 'AES-GCM-256 एन्क्रिप्शन के साथ सुरक्षित। शून्य सर्वर अपलोड के साथ 100% आपके ब्राउज़र में चलता है।',
+            step1_title: 'कवर फ़ोटो',
+            step1_desc: 'अपने गुप्त डेटा को रखने के लिए एक फ़ोटो चुनें',
+            dropzone_title: 'कवर फ़ोटो यहाँ खींचें या ब्राउज़ करने के लिए क्लिक करें',
+            dropzone_hint: 'PNG, JPG, WebP, TIFF या BMP समर्थित · Ctrl + V से पेस्ट करें',
+            lossless_ingested: 'दोषरहित फ़ोटो लोड हुई',
+            opsec_note: 'व्यक्तिगत मूल कैमरा फ़ोटो का उपयोग करें। सार्वजनिक फ़ोटो से अंतर विश्लेषण संभव है।',
+            step2_title: 'गुप्त पेलोड',
+            step2_desc: 'गोपनीय नोट दर्ज करें या फ़ाइलें चुनें',
+            tab_message: 'गुप्त नोट',
+            tab_files: 'फ़ाइलें / पुरालेख',
+            message_placeholder: 'एन्क्रिप्ट और छिपाने के लिए गोपनीय संदेश लिखें…',
+            files_dropzone_title: 'फ़ाइलों को यहाँ खींचें',
+            files_dropzone_hint: 'दस्तावेज़, पीडीएफ़, चित्र, और अभिलेखागार समर्थित',
+            step3_title: 'पासफ़्रेज़ और सुरक्षा',
+            step3_desc: 'AES-GCM-256 से एन्क्रिप्टेड',
+            password_placeholder: 'पासफ़्रेज़ दर्ज करें या बनाएं',
+            generate_btn: 'उत्पन्न करें',
+            copy_btn: 'कॉपी',
+            copied_btn: 'कॉपी हुआ',
+            zero_knowledge_note: 'शून्य-ज्ञान गारंटी: QuietSend कोई कुंजी संग्रहीत नहीं करता।',
+            no_password_warning: 'बिना पासवर्ड के छिपाएं: पेलोड बिना पासवर्ड सुरक्षा के एम्बेड होगा।',
+            button_hide: 'पेलोड छिपाएं और निर्यात करें',
+            button_busy: 'पिक्सल्स में पेलोड एम्बेड हो रहा है…',
+            export_ready_title: 'वाहक निर्यात तैयार है',
+            export_ready_desc: 'मूल फ़ोटो के समान दृश्य रूप से अपरिवर्तित।',
+            zip_note_title: 'महत्वपूर्ण: दस्तावेज़ (.ZIP) के रूप में भेजें',
+            zip_note_desc: 'मैसेन्जर (WhatsApp, Signal) फ़ोटो को कंप्रेस कर देते हैं। हमेशा 1-क्लिक ZIP भेजें।',
+            download_zip: '1-क्लिक PKZIP पैकेज डाउनलोड करें (अनुशंसित)',
+            download_png: 'दोषरहित PNG फ़ाइल डाउनलोड करें',
+            reset_btn: 'एक और पेलोड छिपाएं',
+            invalid_image: 'उस फ़ाइल को छवि के रूप में नहीं खोला जा सका। PNG, JPG, WebP, TIFF या BMP आज़माएं।',
+            clipboard_error: 'क्लिपबोर्ड अनुमति अस्वीकृत। कृपया मैन्युअल रूप से कॉपी करें।'
+        },
+        simple_reveal: {
+            tagline: 'मेमोरी में पेलोड निष्कर्षण',
+            title: 'मीडिया से गुप्त पेलोड निकालें',
+            desc: 'फ़ोटो और WAV ऑडियो से गोपनीय संदेश या फ़ाइलें खोलें और सत्यापित करें।',
+            step1_title: 'वाहक फ़ाइल',
+            step1_desc: 'प्राप्त फ़ोटो या ऑडियो फ़ाइल चुनें',
+            dropzone_title: 'वाहक फ़ाइल यहाँ खींचें या ब्राउज़ करें',
+            dropzone_hint: 'फ़ोटो, PKZIP पैकेज, और WAV ऑडियो · Ctrl + V समर्थित',
+            carrier_ingested: 'दोषरहित वाहक लोड हुआ',
+            step2_title: 'पासफ़्रेज़ / डिक्रिप्शन कुंजी',
+            step2_desc: 'प्रेषक द्वारा प्रदान किया गया पासफ़्रेज़ दर्ज करें',
+            password_placeholder: 'डिक्रिप्शन पासफ़्रेज़ दर्ज करें',
+            button_reveal: 'गुप्त पेलोड निकालें और दिखाएं',
+            button_busy: 'गुप्त पेलोड निकाला जा रहा है…',
+            success_title: 'पेलोड सफलतापूर्वक निकाला गया',
+            decoy_badge: 'डिकॉय मोड: इस पासफ़्रेज़ ने डिकॉय वॉल्ट खोला है।',
+            copy_message: 'गुप्त संदेश कॉपी करें',
+            copied: 'कॉपी हुआ!',
+            download_all: 'सभी फ़ाइलें डाउनलोड करें',
+            auth_failed: 'प्रमाणीकरण विफल: पासफ़्रेज़ गलत है।',
+            encrypted_prompt: 'पेलोड एन्क्रिप्टेड है: कृपया ऊपर पासफ़्रेज़ दर्ज करें।',
+            no_payload: 'कोई गुप्त पेलोड नहीं मिला। यदि मैसेंजर द्वारा भेजा गया है, तो ZIP फ़ाइल का अनुरोध करें।'
         }
     },
 
@@ -760,6 +940,66 @@ export const dictionaries: Record<Language, Translations> = {
             feedback_submit: 'ಇಂಟೆಲ್ ವರದಿ ಸಲ್ಲಿಸಿ',
             feedback_placeholder: 'ನಿಮ್ಮ ತಾಂತ್ರಿಕ ಪ್ರತಿಕ್ರಿಯೆ, ಭದ್ರತಾ ಸಂಶೋಧನೆಗಳು ಅಥವಾ ವೈಶಿಷ್ಟ್ಯ ವಿನಂತಿಗಳನ್ನು ಟೈಪ್ ಮಾಡಿ...',
             feedback_thanks: 'ನಿಮ್ಮ ಪ್ರತಿಕ್ರಿಯೆಗೆ ಧನ್ಯವಾದಗಳು! ನಿಮ್ಮ ಸಂದೇಶವನ್ನು ದಾಖಲಿಸಲಾಗಿದೆ.'
+        },
+        simple_hide: {
+            tagline: 'ಕ್ಲೈಂಟ್-ಸೈಡ್ ಹಾರ್ಡ್‌ವೇರ್ ಮೆಮೊರಿ ಸ್ಯಾಂಡ್‌ಬಾಕ್ಸ್',
+            title: 'ಫೋಟೋಗಳಲ್ಲಿ ರಹಸ್ಯ ಸಂದೇಶಗಳು ಮತ್ತು ಫೈಲ್‌ಗಳನ್ನು ಮರೆಮಾಡಿ',
+            desc: 'AES-GCM-256 ದೃಢೀಕೃತ ಎನ್‌ಕ್ರಿಪ್ಶನ್‌ನೊಂದಿಗೆ ಸುರಕ್ಷಿತವಾಗಿದೆ. ಸರ್ವರ್ ಅಪ್‌ಲೋಡ್ ಇಲ್ಲದೆ ನಿಮ್ಮ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ರನ್ ಆಗುತ್ತದೆ.',
+            step1_title: 'ಕವರ್ ಫೋಟೋ',
+            step1_desc: 'ರಹಸ್ಯ ಪೇಲೋಡ್ ಇರಿಸಲು ಫೋಟೋ ಆಯ್ಕೆಮಾಡಿ',
+            dropzone_title: 'ಕವರ್ ಫೋಟೋ ಇಲ್ಲಿ ಎಳೆಯಿರಿ ಅಥವಾ ಬ್ರೌಸ್ ಮಾಡಲು ಕ್ಲಿಕ್ ಮಾಡಿ',
+            dropzone_hint: 'PNG, JPG, WebP, TIFF ಅಥವಾ BMP ಬೆಂಬಲಿತವಾಗಿದೆ · Ctrl + V ಬೆಂಬಲಿತವಾಗಿದೆ',
+            lossless_ingested: 'ನಷ್ಟವಿಲ್ಲದ ಫೋಟೋ ಲೋಡ್ ಆಗಿದೆ',
+            opsec_note: 'ವೈಯಕ್ತಿಕ ಮೂಲ ಕ್ಯಾಮೆರಾ ಫೋಟೋ ಬಳಸಿ. ಸಾರ್ವಜನಿಕ ಫೋಟೋಗಳು ವ್ಯತ್ಯಾಸ ವಿಶ್ಲೇಷಣೆಗೆ ಕಾರಣವಾಗಬಹುದು.',
+            step2_title: 'ರಹಸ್ಯ ಪೇಲೋಡ್',
+            step2_desc: 'ಗೌಪ್ಯ ಸಂದೇಶ ನಮೂದಿಸಿ ಅಥವಾ ಫೈಲ್‌ಗಳನ್ನು ಆಯ್ಕೆಮಾಡಿ',
+            tab_message: 'ರಹಸ್ಯ ಟಿಪ್ಪಣಿ',
+            tab_files: 'ಫೈಲ್‌ಗಳು / ಆರ್ಕೈವ್',
+            message_placeholder: 'ಎನ್‌ಕ್ರಿಪ್ಟ್ ಮಾಡಲು ಗೌಪ್ಯ ಸಂದೇಶವನ್ನು ಟೈಪ್ ಮಾಡಿ…',
+            files_dropzone_title: 'ಆರ್ಕೈವ್‌ಗೆ ಪ್ಯಾಕ್ ಮಾಡಲು ಫೈಲ್‌ಗಳನ್ನು ಇಲ್ಲಿ ಎಳೆಯಿರಿ',
+            files_dropzone_hint: 'ದಾಖಲೆಗಳು, ಪಿಡಿಎಫ್, ಚಿತ್ರಗಳು ಮತ್ತು ಆರ್ಕೈವ್‌ಗಳು ಬೆಂಬಲಿತವಾಗಿದೆ',
+            step3_title: 'ಪಾಸ್‌ಫ್ರೇಸ್ ಮತ್ತು ರಕ್ಷಣೆ',
+            step3_desc: 'AES-GCM-256 ನೊಂದಿಗೆ ಎನ್‌ಕ್ರಿಪ್ಟ್ ಮಾಡಲಾಗಿದೆ',
+            password_placeholder: 'ಪಾಸ್‌ಫ್ರೇಸ್ ನಮೂದಿಸಿ ಅಥವಾ ರಚಿಸಿ',
+            generate_btn: 'ರಚಿಸಿ',
+            copy_btn: 'ಕಾಪಿ',
+            copied_btn: 'ಕಾಪಿ ಆಗಿದೆ',
+            zero_knowledge_note: 'ಶೂನ್ಯ-ಜ್ಞಾನ ಗ್ಯಾರಂಟಿ: QuietSend ಯಾವುದೇ ಕೀಲಿಗಳನ್ನು ಸಂಗ್ರಹಿಸುವುದಿಲ್ಲ.',
+            no_password_warning: 'ಎನ್‌ಕ್ರಿಪ್ಶನ್ ಇಲ್ಲದೆ ಮರೆಮಾಡಿ: ಪಾಸ್‌ವರ್ಡ್ ರಕ್ಷಣೆ ಇಲ್ಲದೆ ಪೇಲೋಡ್ ಎಂಬೆಡ್ ಆಗುತ್ತದೆ.',
+            button_hide: 'ಪೇಲೋಡ್ ಮರೆಮಾಡಿ ಮತ್ತು ರಫ್ತು ಮಾಡಿ',
+            button_busy: 'ಪಿಕ್ಸೆಲ್‌ಗಳಲ್ಲಿ ಪೇಲೋಡ್ ಎಂಬೆಡ್ ಆಗುತ್ತಿದೆ…',
+            export_ready_title: 'ಕ್ಯಾರಿಯರ್ ರಫ್ತು ಸಿದ್ಧವಾಗಿದೆ',
+            export_ready_desc: 'ಮೂಲ ಫೋಟೋದಂತೆ ದೃಶ್ಯವಾಗಿ ಒಂದೇ ತೆರನಾಗಿದೆ.',
+            zip_note_title: 'ಪ್ರಮುಖ: ಡಾಕ್ಯುಮೆಂಟ್ (.ZIP) ಆಗಿ ಕಳುಹಿಸಿ',
+            zip_note_desc: 'ಮೆಸೆಂಜರ್‌ಗಳು (WhatsApp, Signal) ಫೋಟೋಗಳನ್ನು ಕಂಪ್ರೆಸ್ ಮಾಡುತ್ತವೆ. ಯಾವಾಗಲೂ 1-ಕ್ಲಿಕ್ ZIP ಕಳುಹಿಸಿ.',
+            download_zip: '1-ಕ್ಲಿಕ್ PKZIP ಪ್ಯಾಕೇಜ್ ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ (ಶಿಫಾರಸು ಮಾಡಲಾಗಿದೆ)',
+            download_png: 'ನಷ್ಟವಿಲ್ಲದ PNG ಫೈಲ್ ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ',
+            reset_btn: 'ಮತ್ತೊಂದು ಪೇಲೋಡ್ ಮರೆಮಾಡಿ',
+            invalid_image: 'ಆ ಫೈಲ್ ಅನ್ನು ಚಿತ್ರವಾಗಿ ತೆರೆಯಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. PNG, JPG, WebP, TIFF ಅಥವಾ BMP ಬಳಸಿ.',
+            clipboard_error: 'ಕ್ಲಿಪ್‌ಬೋರ್ಡ್ ಅನುಮತಿ ನಿರಾಕರಿಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಹಸ್ತಚಾಲಿತವಾಗಿ ನಕಲಿಸಿ.'
+        },
+        simple_reveal: {
+            tagline: 'ಮೆಮೊರಿಯಲ್ಲಿ ಪೇಲೋಡ್ ಹೊರತೆಗೆಯುವಿಕೆ',
+            title: 'ಮಾಧ್ಯಮದಿಂದ ರಹಸ್ಯ ಪೇಲೋಡ್‌ಗಳನ್ನು ಹೊರತೆಗೆಯಿರಿ',
+            desc: 'ಫೋಟೋಗಳು ಮತ್ತು WAV ಆಡಿಯೊದಿಂದ ಗೌಪ್ಯ ಸಂದೇಶಗಳು ಅಥವಾ ಫೈಲ್‌ಗಳನ್ನು ತೆರೆಯಿರಿ ಮತ್ತು ಪರಿಶೀಲಿಸಿ.',
+            step1_title: 'ಕ್ಯಾರಿಯರ್ ಫೈಲ್',
+            step1_desc: 'ಸ್ವೀಕರಿಸಿದ ಫೋಟೋ ಅಥವಾ ಆಡಿಯೊ ಫೈಲ್ ಆಯ್ಕೆಮಾಡಿ',
+            dropzone_title: 'ಕ್ಯಾರಿಯರ್ ಫೈಲ್ ಇಲ್ಲಿ ಎಳೆಯಿರಿ ಅಥವಾ ಕ್ಲಿಕ್ ಮಾಡಿ',
+            dropzone_hint: 'ಫೋಟೋಗಳು, PKZIP ಪ್ಯಾಕೇಜ್‌ಗಳು ಮತ್ತು WAV ಆಡಿಯೊ · Ctrl + V ಬೆಂಬಲಿತವಾಗಿದೆ',
+            carrier_ingested: 'ನಷ್ಟವಿಲ್ಲದ ಕ್ಯಾರಿಯರ್ ಲೋಡ್ ಆಗಿದೆ',
+            step2_title: 'ಪಾಸ್‌ಫ್ರೇಸ್ / ಡಿಕ್ರಿಪ್ಶನ್ ಕೀ',
+            step2_desc: 'ರವಾನೆದಾರರು ಒದಗಿಸಿದ ಪಾಸ್‌ಫ್ರೇಸ್ ನಮೂದಿಸಿ',
+            password_placeholder: 'ಡಿಕ್ರಿಪ್ಶನ್ ಪಾಸ್‌ಫ್ರೇಸ್ ನಮೂದಿಸಿ',
+            button_reveal: 'ಗುಪ್ತ ಪೇಲೋಡ್ ಹೊರತೆಗೆಯಿರಿ ಮತ್ತು ಬಹಿರಂಗಪಡಿಸಿ',
+            button_busy: 'ಗುಪ್ತ ಪೇಲೋಡ್ ಹೊರತೆಗೆಯಲಾಗುತ್ತಿದೆ…',
+            success_title: 'ಪೇಲೋಡ್ ಯಶಸ್ವಿಯಾಗಿ ಹೊರತೆಗೆಯಲಾಗಿದೆ',
+            decoy_badge: 'ಡಿಕಾಯ್ ಮೋಡ್: ಈ ಪಾಸ್‌ಫ್ರೇಸ್ ಡಿಕಾಯ್ ವಾಲ್ಟ್ ಅನ್ನು ಅನ್‌ಲಾಕ್ ಮಾಡಿದೆ.',
+            copy_message: 'ರಹಸ್ಯ ಸಂದೇಶವನ್ನು ನಕಲಿಸಿ',
+            copied: 'ನಕಲಿಸಲಾಗಿದೆ!',
+            download_all: 'ಎಲ್ಲಾ ಫೈಲ್‌ಗಳನ್ನು ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ',
+            auth_failed: 'ದೃಢೀಕರಣ ವಿಫಲವಾಗಿದೆ: ಪಾಸ್‌ಫ್ರೇಸ್ ತಪ್ಪಾಗಿದೆ.',
+            encrypted_prompt: 'ಪೇಲೋಡ್ ಎನ್‌ಕ್ರಿಪ್ಟ್ ಆಗಿದೆ: ದಯವಿಟ್ಟು ಮೇಲೆ ಪಾಸ್‌ಫ್ರೇಸ್ ನಮೂದಿಸಿ.',
+            no_payload: 'ಯಾವುದೇ ಗುಪ್ತ ಪೇಲೋಡ್ ಕಂಡುಬಂದಿಲ್ಲ. ಮೆಸೆಂಜರ್ ಮೂಲಕ ಕಳುಹಿಸಿದ್ದರೆ, ಕಂಪ್ರೆಸ್ ಆಗದ ZIP ಫೈಲ್ ಕೇಳಿ.'
         }
     },
 
@@ -950,6 +1190,66 @@ export const dictionaries: Record<Language, Translations> = {
             feedback_submit: 'Enviar Informe de Intel',
             feedback_placeholder: 'Escriba sus comentarios técnicos, hallazgos de seguridad o solicitudes de funciones...',
             feedback_thanks: '¡Gracias por sus comentarios! Su mensaje ha sido registrado.'
+        },
+        simple_hide: {
+            tagline: 'Espacio Seguro en Memoria del Dispositivo',
+            title: 'Ocultar Mensajes y Archivos Secretos en Fotos',
+            desc: 'Protegido con cifrado autenticado AES-GCM-256. Se ejecuta 100% localmente en su navegador sin envíos a servidores.',
+            step1_title: 'Foto de Portada',
+            step1_desc: 'Elija una foto para alojar su carga útil secreta',
+            dropzone_title: 'Suelte la foto de portada aquí o haga clic para buscar',
+            dropzone_hint: 'Soporta PNG, JPG, WebP, TIFF o BMP · Pegue con Ctrl + V',
+            lossless_ingested: 'Foto Sin Pérdidas Cargada',
+            opsec_note: 'Utilice una foto original de su cámara. Las fotos públicas permiten análisis comparativo.',
+            step2_title: 'Carga Secreta',
+            step2_desc: 'Escriba una nota confidencial o seleccione archivos',
+            tab_message: 'Nota Secreta',
+            tab_files: 'Archivos / Bóveda',
+            message_placeholder: 'Escriba el mensaje confidencial para cifrar y ocultar…',
+            files_dropzone_title: 'Suelte archivos aquí para empaquetar',
+            files_dropzone_hint: 'Admite documentos, binarios, PDFs, imágenes y archivos comprimidos',
+            step3_title: 'Contraseña y Protección',
+            step3_desc: 'Cifrado con AES-GCM-256 autenticado',
+            password_placeholder: 'Ingrese o genere una contraseña secreta',
+            generate_btn: 'Generar',
+            copy_btn: 'Copiar',
+            copied_btn: 'Copiado',
+            zero_knowledge_note: 'Garantía Cero-Conocimiento: QuietSend no almacena claves.',
+            no_password_warning: 'Ocultar sin cifrado: La carga se incrustará sin protección por contraseña.',
+            button_hide: 'Ocultar Carga y Exportar Portador',
+            button_busy: 'Incrustando carga en los píxeles…',
+            export_ready_title: 'Portador Listo para Exportar',
+            export_ready_desc: 'Visualmente idéntico a la foto original.',
+            zip_note_title: 'Importante: Enviar como Documento (.ZIP)',
+            zip_note_desc: 'Las aplicaciones de mensajería comprimen las fotos destruyendo los datos ocultos. Envíe siempre el archivo ZIP.',
+            download_zip: 'Descargar Paquete PKZIP (Recomendado)',
+            download_png: 'Descargar Archivo PNG Sin Pérdidas',
+            reset_btn: 'Ocultar otra carga',
+            invalid_image: 'No se pudo abrir ese archivo como imagen. Pruebe con PNG, JPG, WebP, TIFF o BMP.',
+            clipboard_error: 'Permiso del portapapeles denegado. Copie manualmente.'
+        },
+        simple_reveal: {
+            tagline: 'Extracción en Memoria',
+            title: 'Extraer Cargas Secretas de Medios',
+            desc: 'Abra y verifique mensajes o archivos confidenciales desde fotos y audio WAV.',
+            step1_title: 'Archivo Portador',
+            step1_desc: 'Seleccione la foto o audio recibido con datos ocultos',
+            dropzone_title: 'Suelte el archivo portador aquí o haga clic para buscar',
+            dropzone_hint: 'Fotos, paquetes PKZIP y audio WAV · Ctrl + V soportado',
+            carrier_ingested: 'Portador Sin Pérdidas Cargado',
+            step2_title: 'Contraseña de Descifrado',
+            step2_desc: 'Ingrese la contraseña provista por el remitente',
+            password_placeholder: 'Ingrese la contraseña de descifrado',
+            button_reveal: 'Extraer y Revelar Carga Oculta',
+            button_busy: 'Extrayendo carga oculta…',
+            success_title: 'Carga Extraída con Éxito',
+            decoy_badge: 'Modo Señuelo: Esta contraseña desbloqueó la bóveda señuelo.',
+            copy_message: 'Copiar Mensaje Secreto',
+            copied: '¡Copiado!',
+            download_all: 'Descargar Todos los Archivos',
+            auth_failed: 'Fallo de autenticación: Contraseña incorrecta.',
+            encrypted_prompt: 'La carga está cifrada: Ingrese la contraseña requerida arriba.',
+            no_payload: 'No se detectó ninguna carga oculta. Si se envió por mensajería, solicite el archivo ZIP sin comprimir.'
         }
     },
 
@@ -1140,6 +1440,66 @@ export const dictionaries: Record<Language, Translations> = {
             feedback_submit: 'Soumettre le Rapport d\'Intel',
             feedback_placeholder: 'Tapez vos commentaires techniques, résultats de sécurité ou demandes de fonctionnalités...',
             feedback_thanks: 'Merci pour vos commentaires ! Votre message a été enregistré.'
+        },
+        simple_hide: {
+            tagline: 'Bac à Sable en Mémoire Matérielle Côté Client',
+            title: 'Dissimuler Messages et Fichiers Secrets dans des Photos',
+            desc: 'Sécurisé par chiffrement authentifié AES-GCM-256. Fonctionne à 100% localement dans votre navigateur sans téléversement.',
+            step1_title: 'Photo de Couverture',
+            step1_desc: 'Choisissez une photo pour héberger votre contenu secret',
+            dropzone_title: 'Déposez la photo ici ou cliquez pour parcourir',
+            dropzone_hint: 'Prend en charge PNG, JPG, WebP, TIFF ou BMP · Coller avec Ctrl + V',
+            lossless_ingested: 'Photo Sans Perte Chargée',
+            opsec_note: 'Utilisez une photo originale personnelle. Les photos publiques permettent une analyse différentielle.',
+            step2_title: 'Contenu Secret',
+            step2_desc: 'Rédigez une note confidentielle ou sélectionnez des fichiers',
+            tab_message: 'Note Secrète',
+            tab_files: 'Fichiers / Archive',
+            message_placeholder: 'Saisissez le message confidentiel à chiffrer et dissimuler…',
+            files_dropzone_title: 'Déposez des fichiers ici pour les empaqueter',
+            files_dropzone_hint: 'Prend en charge documents, binaires, PDF, images et archives',
+            step3_title: 'Phrase Secrète & Protection',
+            step3_desc: 'Chiffré avec AES-GCM-256 authentifié',
+            password_placeholder: 'Saisissez ou générez une phrase secrète',
+            generate_btn: 'Générer',
+            copy_btn: 'Copier',
+            copied_btn: 'Copié',
+            zero_knowledge_note: 'Garantie Zéro-Connaissance : QuietSend ne conserve aucune clé.',
+            no_password_warning: 'Dissimuler sans chiffrement : Le contenu sera intégré sans mot de passe.',
+            button_hide: 'Dissimuler le Contenu & Exporter',
+            button_busy: 'Intégration du contenu dans les pixels…',
+            export_ready_title: 'Support Prêt à l\'Exportation',
+            export_ready_desc: 'Visuellement identique à la photo d\'origine.',
+            zip_note_title: 'Important : Envoyer en tant que Document (.ZIP)',
+            zip_note_desc: 'Les messageries compressent les photos et détruisent les données cachées. Envoyez toujours le ZIP.',
+            download_zip: 'Télécharger le Package PKZIP 1-Clic (Recommandé)',
+            download_png: 'Télécharger le Fichier PNG Sans Perte',
+            reset_btn: 'Dissimuler un autre contenu',
+            invalid_image: 'Impossible d\'ouvrir ce fichier comme image. Essayez un PNG, JPG, WebP, TIFF ou BMP.',
+            clipboard_error: 'Autorisation du presse-papiers refusée. Veuillez copier manuellement.'
+        },
+        simple_reveal: {
+            tagline: 'Extraction en Mémoire',
+            title: 'Extraire les Données Secrètes d\'un Média',
+            desc: 'Ouvrez et vérifiez les messages ou fichiers confidentiels à partir de photos et d\'audios WAV.',
+            step1_title: 'Fichier Support',
+            step1_desc: 'Sélectionnez la photo ou le fichier audio reçu contenant des données cachées',
+            dropzone_title: 'Déposez le fichier support ici ou cliquez pour parcourir',
+            dropzone_hint: 'Photos, packages PKZIP et audio WAV · Ctrl + V pris en charge',
+            carrier_ingested: 'Support Sans Perte Chargé',
+            step2_title: 'Phrase Secrète / Clé de Déchiffrement',
+            step2_desc: 'Saisissez la phrase secrète fournie par l\'expéditeur',
+            password_placeholder: 'Saisissez la phrase secrète de déchiffrement',
+            button_reveal: 'Extraire & Révéler les Données Secrètes',
+            button_busy: 'Extraction des données secrètes…',
+            success_title: 'Données Extraites avec Succès',
+            decoy_badge: 'Mode Leurre : Cette phrase secrète a déverrouillé le coffre leurre.',
+            copy_message: 'Copier le Message Secret',
+            copied: 'Copié !',
+            download_all: 'Télécharger Tous les Fichiers',
+            auth_failed: 'Échec de l\'authentification : Phrase secrète incorrecte.',
+            encrypted_prompt: 'Le contenu est chiffré : Veuillez saisir la phrase secrète ci-dessus.',
+            no_payload: 'Aucune donnée secrète détectée. Si le fichier a transité par une messagerie, demandez le fichier ZIP non compressé.'
         }
     }
 };

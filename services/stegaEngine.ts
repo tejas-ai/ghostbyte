@@ -1,5 +1,5 @@
 import UTIF from 'utif';
-import { processPixelsWithWorker } from './workerClient';
+import { processPixelsWithWorker, extractBitsWithWorker } from './workerClient';
 import {
   chunksToBytes,
   DENSITY_BITS as BITS,
@@ -341,8 +341,52 @@ export function getScaledDimensions(w: number, h: number, maxDim: number): { w: 
   return { w: Math.round(w * ratio), h: Math.round(h * ratio) };
 }
 
+export const MAX_CARRIER_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+/**
+ * True on devices whose canvas allocation is tight enough that a large photo
+ * blanks the canvas or kills the tab.
+ *
+ * The user-agent test alone is not enough. Since iPadOS 13, Safari on iPad
+ * reports a desktop string -- "Macintosh; Intel Mac OS X" -- with no `iPad`
+ * token anywhere in it, so the obvious regex has not matched a stock iPad in
+ * years and hands the largest-photo device the desktop ceiling.
+ *
+ * `maxTouchPoints` is what separates them: an iPad reports 5, and a real Mac
+ * reports 0 even with a trackpad or a connected touchscreen display. Paired
+ * with the Macintosh UA that is a reliable iPadOS signal, and it avoids the
+ * deprecated `navigator.platform`.
+ *
+ * Evaluated once at module load, which is fine -- none of these inputs change
+ * within a session -- and guarded for non-browser contexts so the module stays
+ * importable from the test runner.
+ */
+function detectConstrainedCanvas(): boolean {
+  if (typeof navigator === 'undefined') return false;
+
+  const ua = navigator.userAgent;
+  if (/iPhone|iPod|Android/i.test(ua)) return true;
+
+  // iPadOS 13+ masquerading as macOS.
+  if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return true;
+
+  // Older iPads, and anything still sending a genuine iPad token.
+  if (/iPad/i.test(ua)) return true;
+
+  return false;
+}
+
+const isMobile = detectConstrainedCanvas();
+export const MAX_IMAGE_DIMENSION = isMobile ? 4096 : 8192; // 4096 px on mobile / 8192 px on desktop
+export const MAX_IMAGE_PIXELS = isMobile ? 16_777_216 : 67_108_864; // ~16.7 MP on mobile / ~67 MP on desktop
+export const MAX_PAYLOAD_FILE_SIZE = 30 * 1024 * 1024; // 30 MB per payload file
+export const MAX_TOTAL_PAYLOAD_SIZE = 50 * 1024 * 1024; // 50 MB total archive
+
 /** Helper to read any File (PNG, JPG, WebP, BMP, ZIP) into image source & dimensions */
 export async function readImageFile(file: File): Promise<{ src: string; w: number; h: number }> {
+  if (file.size > MAX_CARRIER_FILE_SIZE) {
+    throw new Error(`Carrier file size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 50 MB safety limit.`);
+  }
+
   const isZip = /\.zip$/i.test(file.name) || file.type.includes('zip');
   if (isZip) {
     try {
@@ -364,9 +408,13 @@ export async function readImageFile(file: File): Promise<{ src: string; w: numbe
       const buf = await file.arrayBuffer();
       const tiff = parseTiffToDataUrl(buf);
       if (tiff) {
+        if (tiff.width > MAX_IMAGE_DIMENSION || tiff.height > MAX_IMAGE_DIMENSION || tiff.width * tiff.height > MAX_IMAGE_PIXELS) {
+          throw new Error(`Image resolution (${tiff.width}x${tiff.height}) exceeds the ${isMobile ? 'mobile limit of 4096x4096 (16.7 MP)' : 'safety limit of 8192x8192 (67 MP)'}.`);
+        }
         return { src: tiff.dataUrl, w: tiff.width, h: tiff.height };
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('limit')) throw err;
       // fallback
     }
   }
@@ -377,6 +425,11 @@ export async function readImageFile(file: File): Promise<{ src: string; w: numbe
     img.onload = () => {
       const w = img.naturalWidth || img.width;
       const h = img.naturalHeight || img.height;
+      if (w > MAX_IMAGE_DIMENSION || h > MAX_IMAGE_DIMENSION || w * h > MAX_IMAGE_PIXELS) {
+        URL.revokeObjectURL(blobUrl);
+        reject(new Error(`Image resolution (${w}x${h}) exceeds the ${isMobile ? 'mobile limit of 4096x4096 (16.7 MP)' : 'safety limit of 8192x8192 (67 MP)'}.`));
+        return;
+      }
       resolve({ src: blobUrl, w, h });
     };
     img.onerror = async () => {
@@ -385,10 +438,13 @@ export async function readImageFile(file: File): Promise<{ src: string; w: numbe
         const buf = await file.arrayBuffer();
         const tiff = parseTiffToDataUrl(buf);
         if (tiff) {
+          if (tiff.width > MAX_IMAGE_DIMENSION || tiff.height > MAX_IMAGE_DIMENSION || tiff.width * tiff.height > MAX_IMAGE_PIXELS) {
+            return reject(new Error(`Image resolution (${tiff.width}x${tiff.height}) exceeds the ${isMobile ? 'mobile limit of 4096x4096 (16.7 MP)' : 'safety limit of 8192x8192 (67 MP)'}.`));
+          }
           return resolve({ src: tiff.dataUrl, w: tiff.width, h: tiff.height });
         }
-      } catch {
-        // ignore
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('safety limit')) return reject(err);
       }
       reject(new Error('Failed to load image file.'));
     };
@@ -994,10 +1050,10 @@ export interface EmbeddedFile {
 }
 
 export type DecodeResult =
-  | { type: 'text';   content: string; rawBytes?: Uint8Array; isDecoy?: boolean }
-  | { type: 'file';   name: string; data: Uint8Array; isDecoy?: boolean }
-  | { type: 'vault';  files: EmbeddedFile[]; isDecoy?: boolean }
-  | { type: 'binary'; data: Uint8Array; isDecoy?: boolean };
+  | { type: 'text';   content: string; rawBytes?: Uint8Array; isDecoy?: boolean; isAsymmetric?: boolean }
+  | { type: 'file';   name: string; data: Uint8Array; isDecoy?: boolean; isAsymmetric?: boolean }
+  | { type: 'vault';  files: EmbeddedFile[]; isDecoy?: boolean; isAsymmetric?: boolean }
+  | { type: 'binary'; data: Uint8Array; isDecoy?: boolean; isAsymmetric?: boolean };
 
 /** Marks an error as "the bitstream parsed, the passphrase did not fit". */
 interface DecryptError extends Error { isDecryptFailure?: true }
@@ -1020,8 +1076,17 @@ function decryptFailure(message: string): DecryptError {
  * Every branch is a real AES-GCM tag check, so a wrong passphrase cannot be
  * mistaken for a right one, and the caller is told which half opened.
  */
-export async function openContainer(raw: Uint8Array, password: string): Promise<DecodeResult> {
+export async function openContainer(
+  raw: Uint8Array,
+  password: string,
+  onProgress?: ProgressCallback,
+  abortSignal?: AbortSignal,
+): Promise<DecodeResult> {
+  if (abortSignal?.aborted) throw new Error('Decryption cancelled by user.');
+
   // 1. Single vault.
+  onProgress?.(65, 'Authenticating standard container (PBKDF2 600k)...');
+  await yieldMainThread();
   try {
     const pt = await aesDecrypt(raw, password);
     return unpackPayload(pt);
@@ -1029,15 +1094,20 @@ export async function openContainer(raw: Uint8Array, password: string): Promise<
     // Not a single vault, or not this passphrase. Fall through.
   }
 
+  if (abortSignal?.aborted) throw new Error('Decryption cancelled by user.');
+
   // 2. Dual vault, fixed halves.
   const split = Math.floor(raw.length / 2);
   if (split > DUAL_VAULT_BLOCK_OVERHEAD) {
+    onProgress?.(78, 'Probing dual-vault decoy and hidden blocks (PBKDF2 600k)...');
+    await yieldMainThread();
     const halves: { block: Uint8Array; isDecoy: boolean }[] = [
       { block: raw.subarray(0, split), isDecoy: true },
       { block: raw.subarray(split), isDecoy: false },
     ];
 
     for (const { block, isDecoy } of halves) {
+      if (abortSignal?.aborted) throw new Error('Decryption cancelled by user.');
       let inner: Uint8Array | null = null;
       try {
         inner = await aesDecrypt(block, password);
@@ -1062,9 +1132,7 @@ export async function openContainer(raw: Uint8Array, password: string): Promise<
 
 /**
  * Read a bitstream out of the pixel buffer at one density and interpret it.
- *
- * Replaces the separate tryDecodeLsb4 / tryDecodeLsb6 functions, which were
- * line-for-line duplicates apart from the chunk width.
+ * Uses Web Worker to perform LSB extraction off the main thread.
  */
 async function tryDecodeDensity(
   px: Uint8ClampedArray,
@@ -1072,90 +1140,66 @@ async function tryDecodeDensity(
   density: CapacityDensity,
   password?: string,
   onProgress?: ProgressCallback,
+  abortSignal?: AbortSignal,
 ): Promise<DecodeResult> {
-  const bits = BITS[density];
-  const mask = (1 << bits) - 1;
-  const headerChunkCount = Math.ceil(32 / bits);
-  const headerChunks = new Uint8Array(headerChunkCount);
-  let allChunks: Uint8Array | null = null;
+  if (abortSignal?.aborted) throw new Error('Extraction cancelled by user.');
+  
+  const rawData = await extractBitsWithWorker(px, totalRgbChannels, density);
+  if (!rawData) {
+    throw new Error(`No valid ${density.toUpperCase()} payload detected`);
+  }
 
-  try {
-    for (let ci = 0; ci < headerChunkCount; ci++) {
-      const pxIdx = ((ci / 3) | 0) * 4 + (ci % 3);
-      if (pxIdx >= px.length) throw new Error('Invalid carrier stream');
-      headerChunks[ci] = px[pxIdx] & mask;
-    }
-
-    const len = readU32LE(chunksToBytes(headerChunks, 4, bits));
-    const maxBytes = Math.floor((totalRgbChannels * bits - 32) / 8);
-    if (len === 0 || len > maxBytes) {
-      throw new Error(`No valid ${density.toUpperCase()} payload detected`);
-    }
-
-    const totalChunks = Math.ceil(((4 + len) * 8) / bits);
-    allChunks = new Uint8Array(totalChunks);
-    allChunks.set(headerChunks, 0);
-    for (let ci = headerChunkCount; ci < totalChunks; ci++) {
-      const pxIdx = ((ci / 3) | 0) * 4 + (ci % 3);
-      if (pxIdx >= px.length) throw new Error('Stream truncated');
-      allChunks[ci] = px[pxIdx] & mask;
-    }
-
-    const streamBytes = chunksToBytes(allChunks, 4 + len, bits);
-    const rawData = new Uint8Array(streamBytes.subarray(4));
-
-    // Legacy GHOST_HONEY dual container, written before the fixed-halves layout.
-    if (rawData.length >= 19 && constantTimeCompare(rawData.subarray(0, 11), GHOST_HONEY_SIG)) {
-      onProgress?.(50, 'Analyzing legacy Honey-Vault container...');
-      let off = 11;
-      const decoyLen = readU32LE(rawData, off); off += 4;
-      if (off + decoyLen <= rawData.length) {
-        const decoyCipher = rawData.subarray(off, off + decoyLen); off += decoyLen;
-        if (off + 4 <= rawData.length) {
-          const primaryLen = readU32LE(rawData, off); off += 4;
-          if (off + primaryLen <= rawData.length && password && password.length > 0) {
-            const primaryCipher = rawData.subarray(off, off + primaryLen);
-            try {
-              const pt = await aesDecrypt(decoyCipher, password);
-              const res = unpackPayload(pt);
-              res.isDecoy = true;
-              return res;
-            } catch {
-              // decoy did not open; try the primary block
-            }
-            try {
-              return unpackPayload(await aesDecrypt(primaryCipher, password));
-            } catch {
-              throw decryptFailure('Incorrect passphrase for this Honey-Vault container.');
-            }
+  // Legacy GHOST_HONEY dual container, written before the fixed-halves layout.
+  if (rawData.length >= 19 && constantTimeCompare(rawData.subarray(0, 11), GHOST_HONEY_SIG)) {
+    onProgress?.(50, 'Analyzing legacy Honey-Vault container...');
+    await yieldMainThread();
+    let off = 11;
+    const decoyLen = readU32LE(rawData, off); off += 4;
+    if (off + decoyLen <= rawData.length) {
+      const decoyCipher = rawData.subarray(off, off + decoyLen); off += decoyLen;
+      if (off + 4 <= rawData.length) {
+        const primaryLen = readU32LE(rawData, off); off += 4;
+        if (off + primaryLen <= rawData.length && password && password.length > 0) {
+          const primaryCipher = rawData.subarray(off, off + primaryLen);
+          try {
+            const pt = await aesDecrypt(decoyCipher, password);
+            const res = unpackPayload(pt);
+            res.isDecoy = true;
+            return res;
+          } catch {
+            // decoy did not open; try the primary block
+          }
+          try {
+            return unpackPayload(await aesDecrypt(primaryCipher, password));
+          } catch {
+            throw decryptFailure('Incorrect passphrase for this Honey-Vault container.');
           }
         }
       }
     }
-
-    // Asymmetric envelope: the "password" is a PKCS#8 private key.
-    if (isAsymmetricPayload(rawData)) {
-      if (!password || password.length === 0) {
-        throw new Error('This payload is encrypted to a public key. Unlock it with the matching private key from your Keyring.');
-      }
-      onProgress?.(65, 'Decrypting with asymmetric private key...');
-      try {
-        return unpackPayload(await decryptWithPrivateKey(rawData, password));
-      } catch (e) {
-        throw decryptFailure(e instanceof Error ? e.message : 'Private key could not open this payload.');
-      }
-    }
-
-    if (password && password.length > 0) {
-      onProgress?.(65, 'Authenticating and decrypting payload...');
-      return await openContainer(rawData, password);
-    }
-
-    return unpackPayload(rawData);
-  } finally {
-    zeroFill(headerChunks);
-    zeroFill(allChunks);
   }
+
+  // Asymmetric envelope: the "password" is a PKCS#8 private key.
+  if (isAsymmetricPayload(rawData)) {
+    if (!password || password.length === 0) {
+      throw new Error('This payload is encrypted to a public key. Unlock it with the matching private key from your Keyring.');
+    }
+    onProgress?.(65, 'Decrypting with asymmetric private key...');
+    await yieldMainThread();
+    try {
+      const res = unpackPayload(await decryptWithPrivateKey(rawData, password));
+      res.isAsymmetric = true;
+      return res;
+    } catch (e) {
+      throw decryptFailure(e instanceof Error ? e.message : 'Private key could not open this payload.');
+    }
+  }
+
+  if (password && password.length > 0) {
+    return await openContainer(rawData, password, onProgress, abortSignal);
+  }
+
+  return unpackPayload(rawData);
 }
 
 // ── Decode (main) — probes each density in turn ───────────────────────────────
@@ -1163,20 +1207,25 @@ export async function decodeImage(
   stegoSrc: string,
   password?: string,
   onProgress?: ProgressCallback,
+  abortSignal?: AbortSignal,
 ): Promise<DecodeResult> {
   onProgress?.(15, 'Loading carrier pixel matrix...');
+  await yieldMainThread();
   const { ctx, w, h } = await loadCanvas(stegoSrc);
   const px = ctx.getImageData(0, 0, w, h).data;
   const totalRgbChannels = Math.floor((px.length / 4) * 3);
 
   onProgress?.(35, 'Detecting steganographic bitstream density...');
+  await yieldMainThread();
 
   let firstBinary: DecodeResult | null = null;
   let bestError: unknown = null;
 
   for (const density of PROBE_ORDER) {
+    if (abortSignal?.aborted) throw new Error('Extraction cancelled by user.');
+    await yieldMainThread();
     try {
-      const res = await tryDecodeDensity(px, totalRgbChannels, density, password, onProgress);
+      const res = await tryDecodeDensity(px, totalRgbChannels, density, password, onProgress, abortSignal);
       // A binary result means the bits came out but nothing recognised them, so
       // keep probing: a later density may produce a real payload.
       if (res.type !== 'binary') {
@@ -1185,6 +1234,7 @@ export async function decodeImage(
       }
       firstBinary ??= res;
     } catch (e) {
+      if (abortSignal?.aborted) throw e;
       // A decrypt failure is far more informative than "no payload at this
       // density", so let it win when we have to report something.
       if (!bestError || (e as DecryptError)?.isDecryptFailure) bestError = e;
@@ -1277,18 +1327,19 @@ export async function compareImages(origSrc: string, modSrc: string) {
 
   let mseSum = 0;
   const heat = new Uint8ClampedArray(w * h * 4);
+  const len = ad.length;
 
-  for (let i = 0; i < ad.length; i += 4) {
-    let diffSum = 0;
-    for (let c = 0; c < 3; c++) {
-      const diff = Math.abs(ad[i + c] - bd[i + c]);
-      diffSum += diff;
-      mseSum += diff * diff;
-    }
+  for (let i = 0; i < len; i += 4) {
+    const dr = ad[i] - bd[i];
+    const dg = ad[i + 1] - bd[i + 1];
+    const db = ad[i + 2] - bd[i + 2];
+    const absDr = dr < 0 ? -dr : dr;
+    const absDg = dg < 0 ? -dg : dg;
+    const absDb = db < 0 ? -db : db;
+    const diffSum = absDr + absDg + absDb;
+    mseSum += (dr * dr) + (dg * dg) + (db * db);
 
-    const avgDiff = diffSum / 3;
-    const amp = Math.min(255, avgDiff * 16);
-
+    const amp = Math.min(255, (diffSum * 16) / 3);
     heat[i]     = amp;
     heat[i + 1] = Math.max(0, 255 - amp);
     heat[i + 2] = 0;
@@ -1310,26 +1361,38 @@ export async function compareImages(origSrc: string, modSrc: string) {
   const diffCtx = diffCanvas.getContext('2d')!;
   diffCtx.drawImage(b.ctx.canvas, 0, 0);
 
+  const [heatmapUrl, diffUrl] = await Promise.all([
+    new Promise<string>((resolve) => {
+      heatCanvas.toBlob((blob) => resolve(URL.createObjectURL(blob!)), 'image/png');
+    }),
+    new Promise<string>((resolve) => {
+      diffCanvas.toBlob((blob) => resolve(URL.createObjectURL(blob!)), 'image/png');
+    }),
+  ]);
+
   return {
     mse,
     psnr,
-    diffUrl: diffCanvas.toDataURL('image/png'),
-    heatmapUrl: heatCanvas.toDataURL('image/png'),
+    diffUrl,
+    heatmapUrl,
   };
 }
 
-// ── Bit-plane extraction (0 = LSB, 7 = MSB) ──────────────────────────────────
+// ── Bit-plane extraction (0 = LSB, 7 = MSB) (Accelerated 32-bit Processing) ───
 export async function getBitPlane(src: string, bit: number): Promise<string> {
   const { ctx, w, h } = await loadCanvas(src, 1920);
   const imgData = ctx.getImageData(0, 0, w, h);
   const px = imgData.data;
 
   const mask = 1 << Math.max(0, Math.min(7, bit));
-  for (let i = 0; i < px.length; i += 4) {
-    for (let c = 0; c < 3; c++) {
-      px[i + c] = (px[i + c] & mask) ? 255 : 0;
-    }
-    px[i + 3] = 255;
+  const buf32 = new Uint32Array(px.buffer);
+  const len = buf32.length;
+  for (let i = 0; i < len; i++) {
+    const p = buf32[i];
+    const r = (p & mask) ? 255 : 0;
+    const g = ((p >> 8) & mask) ? 255 : 0;
+    const b = ((p >> 16) & mask) ? 255 : 0;
+    buf32[i] = (255 << 24) | (b << 16) | (g << 8) | r;
   }
 
   ctx.putImageData(imgData, 0, 0);

@@ -1,110 +1,74 @@
-import React, { useState, useRef, useCallback, useEffect, type DragEvent, type ChangeEvent } from 'react';
+import React, { useState, useEffect, useRef, useCallback, type ChangeEvent, type DragEvent } from 'react';
 import {
   Unlock,
-  Eye,
-  EyeOff,
-  AlertTriangle,
-  Upload,
-  RotateCcw,
+  Key,
+  Download,
   Copy,
   Check,
+  AlertTriangle,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Music,
   FileText,
-  File as FileIcon,
   Package,
-  Sparkles,
-  Download,
-  Image as ImageIcon,
-  CheckCircle2,
   X,
   ClipboardPaste,
-  Music,
-  Key,
-  ShieldCheck,
-  Share2,
-  Lock,
+  CheckCircle2,
+  Inbox,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
   decodeImage,
   downloadBlob,
   readImageFile,
-  calcSha256,
   unpackPayload,
+  calcSha256,
   openContainer,
   type DecodeResult,
   type EmbeddedFile,
 } from '../services/stegaEngine';
-import { useRevocableUrl } from '../hooks/useRevocableUrl';
+import { decodeWavAudio, parseWavHeader } from '../services/audioStegaEngine';
 import {
-  getStoredKeyring,
   isAsymmetricPayload,
   decryptWithPrivateKey,
+  getStoredKeyring,
   type KeyPairInfo,
 } from '../services/asymmetricCrypto';
-import {
-  parseWavHeader,
-  decodeWavAudio,
-} from '../services/audioStegaEngine';
+import { useRevocableUrl } from '../hooks/useRevocableUrl';
 import { soundFx } from '../services/soundFx';
+import SkeuoSegmentedControl from './SkeuoSegmentedControl';
 
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1048576).toFixed(2)} MB`;
+function fmtBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1048576).toFixed(2)} MB`;
 }
 
 function FileChip({ name, data }: { name: string; data: Uint8Array }) {
-  const [hash, setHash] = useState<string>('');
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    calcSha256(data).then(setHash);
-  }, [data]);
-
-  const copyHash = () => {
-    soundFx.playClick();
-    navigator.clipboard.writeText(hash);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl glass-3d text-xs font-mono gap-2">
-      <div className="flex items-center gap-2 truncate flex-1 min-w-0">
-        <FileIcon size={15} className="text-pink-400 shrink-0" />
-        <div className="truncate min-w-0">
-          <span className="truncate text-white font-bold block">{name}</span>
-          {hash && (
-            <span className="text-[10px] text-slate-400 font-mono truncate block">
-              SHA-256: {hash.slice(0, 16)}...
-            </span>
-          )}
+    <div className="card-inset flex items-center justify-between gap-3 p-3 animate-fade-in">
+      <div className="flex items-center gap-2.5 truncate">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-black/50 bg-[#1e2533] text-[#64b5f6]">
+          <FileText size={15} />
+        </div>
+        <div className="truncate text-xs font-mono">
+          <p className="font-bold text-white truncate max-w-[200px] sm:max-w-xs">{name}</p>
+          <p className="text-[11px] text-[#718096]">{fmtBytes(data.length)}</p>
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <span className="text-pink-300 font-semibold">{fmtBytes(data.length)}</span>
-        {hash && (
-          <button
-            type="button"
-            onClick={copyHash}
-            title="Copy SHA-256 Hash"
-            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 transition-colors cursor-pointer"
-          >
-            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => {
-            soundFx.playClick();
-            downloadBlob(data, name);
-          }}
-          className="px-3 py-1.5 rounded-lg btn-3d-purple text-white flex items-center gap-1 cursor-pointer font-bold"
-        >
-          <Download size={12} />
-          <span>Download</span>
-        </button>
-      </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          soundFx.playClick();
+          downloadBlob(data, name);
+        }}
+        className="btn btn-secondary shrink-0 !px-3 !py-1.5 !text-xs cursor-pointer"
+      >
+        <Download size={13} />
+        <span>Save</span>
+      </button>
     </div>
   );
 }
@@ -116,27 +80,25 @@ interface DecoderProps {
 export default function Decoder({ onOpenKeyring }: DecoderProps) {
   const { t } = useLanguage();
 
-  // Stego Carrier State (Image or Audio)
   const [carrierKind, setCarrierKind] = useState<'image' | 'audio'>('image');
   const [stegoSrc, setStegoSrc] = useState<string | null>(null);
   const trackStegoUrl = useRevocableUrl();
   const [stegoName, setStegoName] = useState<string>('');
   const [audioBuffer, setAudioBuffer] = useState<ArrayBuffer | null>(null);
-  const [dragOver, setDragOver] = useState(false);
 
-  // Decryption Mode: 'passphrase' vs 'keyring'
   const [decryptMethod, setDecryptMethod] = useState<'passphrase' | 'keyring'>('passphrase');
   const [pass, setPass] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [keyring, setKeyring] = useState<KeyPairInfo[]>([]);
   const [selectedKeyId, setSelectedKeyId] = useState<string>('');
 
-  // Processing & Results
   const [loading, setLoading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState<{ pct: number; status: string } | null>(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState<DecodeResult | null>(null);
-  const [textHash, setTextHash] = useState<string>('');
+  const [carrierHash, setCarrierHash] = useState<string>('');
+  const [copiedHash, setCopiedHash] = useState(false);
 
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -158,42 +120,53 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
     }
   }, []);
 
-  const loadStegoFile = useCallback(async (file: File) => {
-    soundFx.playClick();
-    setError('');
-    setResult(null);
-    setTextHash('');
+  const loadStegoFile = useCallback(
+    async (file: File) => {
+      soundFx.playClick();
+      setError('');
+      setResult(null);
 
-    if (file.name.toLowerCase().endsWith('.wav') || file.type.includes('audio')) {
+      const isAudio = file.name.toLowerCase().endsWith('.wav') || file.type.includes('audio');
+      if (isAudio && file.size > 100 * 1024 * 1024) {
+        setError(`Carrier audio size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 100 MB safety limit.`);
+        soundFx.playError();
+        return;
+      }
+      if (!isAudio && file.size > 50 * 1024 * 1024) {
+        setError(`Carrier image size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 50 MB safety limit.`);
+        soundFx.playError();
+        return;
+      }
+
       try {
-        const buf = await file.arrayBuffer();
-        parseWavHeader(buf); // validate before accepting
-        const url = URL.createObjectURL(file);
-        trackStegoUrl(url);
-        setCarrierKind('audio');
-        setAudioBuffer(buf);
-        setStegoName(file.name);
-        setStegoSrc(url);
+        const fileBuffer = await file.arrayBuffer();
+        const hash = await calcSha256(new Uint8Array(fileBuffer));
+        setCarrierHash(hash);
+
+        if (isAudio) {
+          parseWavHeader(fileBuffer);
+          const url = URL.createObjectURL(file);
+          trackStegoUrl(url);
+          setCarrierKind('audio');
+          setAudioBuffer(fileBuffer);
+          setStegoName(file.name);
+          setStegoSrc(url);
+        } else {
+          const { src } = await readImageFile(file);
+          trackStegoUrl(src);
+          setCarrierKind('image');
+          setAudioBuffer(null);
+          setStegoSrc(src);
+          setStegoName(file.name || 'carrier.png');
+        }
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Invalid WAV audio file.');
+        setError(err instanceof Error ? err.message : 'Unable to parse carrier file.');
         soundFx.playError();
       }
-    } else {
-      try {
-        const { src } = await readImageFile(file);
-        trackStegoUrl(src);
-        setCarrierKind('image');
-        setAudioBuffer(null);
-        setStegoSrc(src);
-        setStegoName(file.name || 'clipboard-stego.png');
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Unable to parse image file. Please select a valid PNG, JPG, WebP, or BMP image.');
-        soundFx.playError();
-      }
-    }
-  }, [trackStegoUrl]);
+    },
+    [trackStegoUrl]
+  );
 
-  // Direct Clipboard (Ctrl + V) Ingestion
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
@@ -231,81 +204,96 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
     setAudioBuffer(null);
     setStegoName('');
     setResult(null);
-    setTextHash('');
+    setCarrierHash('');
     setError('');
   };
 
+  const copyCarrierHash = () => {
+    if (!carrierHash) return;
+    soundFx.playClick();
+    navigator.clipboard.writeText(carrierHash).then(() => {
+      setCopiedHash(true);
+      setTimeout(() => setCopiedHash(false), 2000);
+    });
+  };
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const decode = async () => {
     if (!stegoSrc && !audioBuffer) return;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setLoading(true);
-    setProgress({ pct: 5, status: 'Initializing bitstream analyzer...' });
+    setProgress({ pct: 5, status: 'Initializing bitstream demultiplexer…' });
     setError('');
     setResult(null);
-    setTextHash('');
     soundFx.playScan();
 
     try {
-      // Determine decryption secret / private key
       let secretParam = pass.trim() || undefined;
       if (decryptMethod === 'keyring') {
-        const key = keyring.find((k) => k.id === selectedKeyId) || keyring[0];
-        if (key) {
-          secretParam = key.privateKeyArmor;
-        }
+        secretParam = undefined;
       }
+
+      let extractedResult: DecodeResult;
 
       if (carrierKind === 'audio' && audioBuffer) {
-        setProgress({ pct: 30, status: 'Scanning 16-bit PCM audio samples...' });
-        const rawExtracted = await decodeWavAudio(audioBuffer, 2, (pct, status) => setProgress({ pct, status }));
+        setProgress({ pct: 30, status: 'Probing 16-bit PCM WAV bitplanes…' });
+        const rawPayload = await decodeWavAudio(audioBuffer, 2, (pct, status) =>
+          setProgress({ pct, status })
+        );
 
-        let unpacked: DecodeResult;
-        if (isAsymmetricPayload(rawExtracted)) {
-          if (!secretParam) {
-            throw new Error('This audio file is encrypted to a public key. Select your Keyring identity to unlock it.');
+        if (controller.signal.aborted) throw new Error('Extraction cancelled by user.');
+
+        if (isAsymmetricPayload(rawPayload)) {
+          setProgress({ pct: 70, status: 'Performing ECDH P-256 private key decryption…' });
+          const key = keyring.find((k) => k.id === selectedKeyId) ?? keyring[0];
+          if (!key) {
+            throw new Error(
+              'This container is locked to an asymmetric public key. Please select a matching private key.'
+            );
           }
-          unpacked = unpackPayload(await decryptWithPrivateKey(rawExtracted, secretParam));
+          const decryptedPlaintext = await decryptWithPrivateKey(rawPayload, key.privateKeyArmor);
+          extractedResult = unpackPayload(decryptedPlaintext);
         } else if (secretParam) {
-          // Route through the same container opener the image path uses, so a
-          // passphrase typed against an unencrypted carrier falls back to the
-          // plaintext payload instead of failing the whole extraction. This
-          // branch used to inline its own PBKDF2/AES-GCM and threw on any
-          // mismatch, discarding a payload that was sitting right there.
+          setProgress({ pct: 70, status: 'Opening AES-GCM-256 authenticated vault…' });
           try {
-            unpacked = await openContainer(rawExtracted, secretParam);
+            extractedResult = await openContainer(rawPayload, secretParam, undefined, controller.signal);
           } catch (err) {
-            const plain = unpackPayload(rawExtracted);
-            if (plain.type === 'binary') throw err; // genuinely encrypted, wrong key
-            unpacked = plain;
+            if (controller.signal.aborted) throw err;
+            const fallback = unpackPayload(rawPayload);
+            if (fallback.type === 'binary') {
+              throw new Error('Authentication failed: Passphrase incorrect.');
+            }
+            extractedResult = fallback;
           }
         } else {
-          unpacked = unpackPayload(rawExtracted);
-        }
-
-        setResult(unpacked);
-        if (unpacked.type === 'text') {
-          const hash = await calcSha256(new TextEncoder().encode(unpacked.content));
-          setTextHash(hash);
+          extractedResult = unpackPayload(rawPayload);
         }
       } else if (stegoSrc) {
-        const decodedResult = await decodeImage(
+        extractedResult = await decodeImage(
           stegoSrc,
           secretParam,
-          (pct, status) => setProgress({ pct, status })
+          (pct, status) => setProgress({ pct, status }),
+          controller.signal,
         );
-        setResult(decodedResult);
-        if (decodedResult.type === 'text') {
-          const hash = await calcSha256(new TextEncoder().encode(decodedResult.content));
-          setTextHash(hash);
-        }
+      } else {
+        throw new Error('No carrier media loaded.');
       }
 
+      setResult(extractedResult);
       soundFx.playSuccess();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Extraction failed. Ensure this carrier contains a QuietSend payload and that your password/key is correct.');
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Extraction failed. Ensure this carrier contains a QuietSend payload and that your password/key is correct.'
+      );
       soundFx.playError();
     } finally {
       setLoading(false);
       setProgress(null);
+      abortControllerRef.current = null;
     }
   };
 
@@ -327,35 +315,33 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <section className="glass-3d-purple p-6 sm:p-8 space-y-6">
-        {/* Header Title */}
-        <div className="pb-6 border-b border-white/[0.1]">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md glass-pill-3d text-pink-300 text-[11px] font-mono font-bold mb-2">
-            <Unlock size={12} className="text-pink-400" />
-            <span>LSB-4 / LSB-6 & WAV Audio Bitstream Extractor</span>
+    <div className="space-y-4 animate-fade-in">
+      <section className="card p-5 sm:p-6 space-y-4">
+        {/* Header Spec */}
+        <div className="pb-4 border-b border-black/60 border-b-white/5">
+          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#141a24] text-[#a0aec0] border border-black/50 border-t-white/10 mb-2 shadow-inner">
+            <span className="led-dot bg-[#64b5f6] shadow-[0_0_4px_#64b5f6]" />
+            <span>LSB Spatial Demultiplexer & WAV Bitplane Extractor</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight font-sans">
-            {t.decoder.title || 'Extract & Decrypt Payload'}
+          <h2 className="display-md text-[#f7fafc]">
+            Extract & Decrypt Payload
           </h2>
-          <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl font-medium">
-            {t.decoder.desc || 'Recover hidden files or confidential messages embedded inside a steganographic image or audio track.'}
+          <p className="text-xs text-[#a0aec0] mt-1 max-w-xl">
+            Recover hidden files or confidential messages embedded inside a steganographic image or audio track.
           </p>
         </div>
 
-        <div className="space-y-6">
-          {/* Step 1 — Stego Carrier Ingestion */}
-          <div className="space-y-2.5">
+        <div className="space-y-4">
+          {/* Step 1 — Carrier Ingestion */}
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-pink-400 font-mono">
-                <span className="w-5 h-5 rounded bg-gradient-to-br from-purple-600 to-pink-500 text-white flex items-center justify-center text-[10px] font-bold shadow-sm">
-                  1
-                </span>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#a0aec0] font-mono">
+                <span className="step-num step-num-blue">1</span>
                 <span>Stego Carrier Ingestion (Image or Audio)</span>
               </div>
-              <span className="inline-flex items-center gap-1 text-[11px] font-mono text-pink-300 bg-white/5 px-2 py-0.5 rounded border border-white/10">
-                <ClipboardPaste size={12} />
-                <span>Drop image / audio or Ctrl+V</span>
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono text-[#718096] bg-[#0d1016] px-2 py-0.5 rounded border border-black/60 shadow-inner">
+                <ClipboardPaste size={11} />
+                <span>Drop or Ctrl + V</span>
               </span>
             </div>
 
@@ -367,53 +353,71 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
               onChange={onInputChange}
             />
 
-            {stegoSrc ? (
-              <div className="p-4 rounded-xl glass-3d flex flex-col sm:flex-row items-center justify-between gap-4 border-pink-400/40">
-                <div className="flex items-center gap-3.5 w-full sm:w-auto">
-                  {carrierKind === 'image' ? (
-                    <img
-                      src={stegoSrc}
-                      alt="Stego Carrier"
-                      className="w-16 h-16 rounded-lg object-cover border border-white/20 shrink-0 bg-black"
-                    />
-                  ) : (
-                    <div className="w-14 h-14 rounded-lg bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300 shrink-0">
-                      <Music size={24} />
+            {stegoSrc || audioBuffer ? (
+              <div className="space-y-2 animate-fade-in">
+                <div className="card-inset flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-l-2 border-l-[#64b5f6]">
+                  <div className="flex items-center gap-3.5 w-full sm:w-auto">
+                    {stegoSrc ? (
+                      <img
+                        src={stegoSrc}
+                        alt="Stego carrier"
+                        className="h-14 w-14 shrink-0 rounded-lg object-cover border border-black/60 shadow-md"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-black/60 bg-[#1e2533] text-[#64b5f6]">
+                        <Music size={20} />
+                      </div>
+                    )}
+                    <div className="truncate text-xs font-mono">
+                      <p className="font-bold text-white truncate max-w-xs">{stegoName}</p>
+                      <p className="text-[11px] text-[#64b5f6] font-bold">
+                        {carrierKind === 'image' ? 'Image Carrier Loaded' : '16-bit PCM WAV Audio Loaded'}
+                      </p>
                     </div>
-                  )}
-                  <div className="truncate text-xs font-mono space-y-1">
-                    <p className="font-bold text-white truncate max-w-[240px] sm:max-w-xs">{stegoName}</p>
-                    <p className="text-[11px] text-pink-300">
-                      {carrierKind === 'image' ? 'Image Carrier Ready for Extraction' : '16-bit PCM WAV Audio Ready'}
-                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="btn btn-secondary !px-3 !py-1.5 !text-xs cursor-pointer"
+                    >
+                      Change File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearStego}
+                      className="btn btn-ghost !p-2 text-[#718096] hover:text-[#e57373]"
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors cursor-pointer"
-                  >
-                    Change File
-                  </button>
-                  <button
-                    type="button"
-                    onClick={clearStego}
-                    className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 transition-colors cursor-pointer"
-                    title="Remove carrier"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
+                {carrierHash && (
+                  <div className="card-inset flex items-center justify-between gap-2 p-2.5 text-xs font-mono">
+                    <span className="text-[#718096] truncate">Carrier SHA-256: {carrierHash}</span>
+                    <button
+                      type="button"
+                      onClick={copyCarrierHash}
+                      className="btn btn-ghost !p-1 text-[#a0aec0] hover:text-white"
+                      title="Copy Carrier SHA-256 Digest"
+                    >
+                      {copiedHash ? <Check size={12} className="text-[#52b788]" /> : <Copy size={12} />}
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div
                 role="button"
                 tabIndex={0}
-                aria-label="Upload carrier image or audio file"
-                className={`dropzone-3d p-8 text-center transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-400 ${dragOver ? 'drag-over' : ''}`}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                aria-label="Drop carrier image or audio here, or click to browse"
+                className={`dropzone group p-7 text-center transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-cyan-400 ${dragOver ? 'drag-over' : ''}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={onDrop}
                 onClick={() => fileInputRef.current?.click()}
@@ -424,26 +428,26 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
                   }
                 }}
               >
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-400/30 flex items-center justify-center text-pink-400 shadow-md">
-                    <Upload size={24} />
+                <div className="flex flex-col items-center gap-2.5">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-black/60 border-t-white/15 bg-gradient-to-b from-[#252c3b] to-[#171c26] text-[#a0aec0] shadow-sm">
+                    <Inbox size={20} />
                   </div>
-                  <div className="space-y-1">
+                  <div>
                     <p className="text-sm font-bold text-white">Drop carrier image (.png, .zip) or audio (.wav) here</p>
-                    <p className="text-xs text-slate-400">QuietSend auto-detects LSB-4, LSB-6, and PCM audio payloads</p>
+                    <p className="mt-0.5 text-xs text-[#718096] font-mono">
+                      QuietSend auto-detects LSB-1 through LSB-6 and PCM audio bitstreams
+                    </p>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Step 2 — Decryption Credentials */}
-          <div className="space-y-3">
+          {/* Step 2 — Decryption Authorization */}
+          <div className="space-y-3 pt-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-pink-400 font-mono">
-                <span className="w-5 h-5 rounded bg-gradient-to-br from-purple-600 to-pink-500 text-white flex items-center justify-center text-[10px] font-bold shadow-sm">
-                  2
-                </span>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#a0aec0] font-mono">
+                <span className="step-num step-num-blue">2</span>
                 <span>Decryption Authorization</span>
               </div>
 
@@ -451,7 +455,7 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
                 <button
                   type="button"
                   onClick={onOpenKeyring}
-                  className="flex items-center gap-1 text-[11px] font-bold text-purple-300 hover:text-purple-200 transition-colors cursor-pointer"
+                  className="flex items-center gap-1 text-[11px] font-bold text-[#b39ddb] hover:text-white cursor-pointer font-mono"
                 >
                   <Key size={12} />
                   <span>Keyring Studio</span>
@@ -459,150 +463,139 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3 p-1.5 rounded-xl bg-black/50 border border-white/10">
-              <button
-                type="button"
-                onClick={() => {
-                  soundFx.playClick();
-                  setDecryptMethod('passphrase');
-                }}
-                className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  decryptMethod === 'passphrase'
-                    ? 'bg-pink-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Unlock size={13} />
-                <span>Passphrase / Duress Code</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  soundFx.playClick();
-                  setDecryptMethod('keyring');
-                }}
-                className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  decryptMethod === 'keyring'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Key size={13} />
-                <span>My Keyring Private Key</span>
-              </button>
-            </div>
+            <SkeuoSegmentedControl
+              options={[
+                { id: 'passphrase', label: 'Passphrase / Duress Code', icon: <Unlock size={13} />, activeColor: 'blue' },
+                { id: 'keyring', label: 'My Keyring Private Key', icon: <Key size={13} />, activeColor: 'purple' },
+              ]}
+              value={decryptMethod}
+              onChange={(val) => setDecryptMethod(val)}
+            />
 
             {decryptMethod === 'passphrase' ? (
               <div className="space-y-1.5">
                 <div className="relative">
                   <input
                     type={showPass ? 'text' : 'password'}
-                    placeholder="Leave this field completely BLANK if no password was set..."
+                    placeholder="Leave empty if no passphrase was set…"
                     value={pass}
                     onChange={(e) => setPass(e.target.value)}
-                    className="w-full px-4 py-2.5 pr-20 rounded-xl bg-black/60 border border-white/15 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-pink-400 transition-colors font-mono"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') decode();
+                    }}
+                    className="field field-mono pr-10"
                   />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    {pass.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setPass('')}
-                        className="p-1 rounded text-slate-400 hover:text-white transition-colors cursor-pointer text-[10px] font-mono bg-white/10 px-1.5 py-0.5"
-                        title="Clear field"
-                      >
-                        Clear
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setShowPass(!showPass)}
-                      className="p-1.5 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                      title={showPass ? 'Hide password' : 'Show password'}
-                    >
-                      {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(!showPass)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 btn btn-ghost !p-1.5 text-[#718096] hover:text-white"
+                    aria-label={showPass ? 'Hide password' : 'Show password'}
+                  >
+                    {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
                 </div>
-                <p className="text-[10px] text-slate-400 font-mono">
-                  💡 <strong className="text-slate-300">Tip:</strong> If you created this image without a password, leave this box <strong>completely empty</strong>. Do not paste the SHA-256 fingerprint hash here.
+                <p className="text-[11px] text-[#718096]">
+                  Supports standard passphrases, dual-vault decoy passcodes, and plaintext auto-fallback.
                 </p>
               </div>
             ) : (
-              <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 space-y-2">
-                <label className="text-[11px] font-bold text-purple-300">Select Local Identity Keypair:</label>
+              <div className="card-inset p-3 space-y-2">
+                <label className="text-xs font-bold text-[#b39ddb] font-mono">
+                  Select Local Identity Keypair:
+                </label>
                 {keyring.length > 0 ? (
                   <select
                     value={selectedKeyId}
                     onChange={(e) => setSelectedKeyId(e.target.value)}
-                    className="w-full p-2.5 rounded-lg bg-black/70 border border-white/15 text-xs text-white focus:outline-none focus:border-purple-400"
+                    className="field text-xs"
                   >
                     {keyring.map((k) => (
                       <option key={k.id} value={k.id}>
-                        {k.name} (Fingerprint: {k.fingerprint})
+                        {k.name} ({k.fingerprint})
                       </option>
                     ))}
                   </select>
                 ) : (
-                  <p className="text-xs text-slate-400">No keyring identity found. Open Keyring Studio to generate one.</p>
+                  <p className="text-xs text-[#718096]">
+                    No keyring identity found. Open Keyring Studio to generate one.
+                  </p>
                 )}
               </div>
             )}
           </div>
 
-          {/* Action Trigger */}
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-300 font-semibold flex items-center gap-2">
-              <AlertTriangle size={15} className="shrink-0 text-red-400" />
+            <div className="animate-shake flex items-start gap-2.5 rounded-xl border border-black/60 border-t-red-400/30 bg-[#2d1616] p-3.5 text-[13px] leading-relaxed text-[#fee2e2] shadow-[var(--shadow-raised-sm)]" role="alert" aria-live="polite">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[#e57373]" />
               <span>{error}</span>
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={decode}
-            disabled={loading || (!stegoSrc && !audioBuffer)}
-            className="w-full py-3.5 rounded-xl btn-3d-purple text-white font-black text-sm flex items-center justify-center gap-2 transition-all shadow-xl disabled:opacity-50 cursor-pointer"
-          >
-            {loading ? (
-              <>
-                <RotateCcw className="animate-spin" size={16} />
-                <span>{progress?.status || 'Decrypting Payload...'}</span>
-              </>
-            ) : (
-              <>
-                <Unlock size={16} />
-                <span>Extract & Decrypt Secret Payload</span>
-              </>
-            )}
-          </button>
-
-          {/* Decoded Results Section — Rendered Inline for Instant Visibility */}
-          {result && (
-            <div
-              ref={resultRef}
-              className="mt-6 p-5 sm:p-6 rounded-2xl bg-[#080d1a]/95 border-2 border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.15)] space-y-5 animate-fade-in"
+          {/* Physical Push Action Button in Electric Azure with Cancel support */}
+          {loading ? (
+            <div className="flex gap-2 w-full">
+              <button
+                type="button"
+                disabled
+                className="btn-azure flex-1 !py-3.5 !text-sm sm:!text-base cursor-not-allowed opacity-90"
+              >
+                <span className="flex items-center justify-center gap-2" role="status" aria-live="polite">
+                  <RefreshCw className="animate-spin shrink-0" size={17} />
+                  <span className="truncate">{progress?.status || 'Decrypting Payload…'}</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  soundFx.playClick();
+                  abortControllerRef.current?.abort();
+                }}
+                className="btn btn-secondary !px-4 !py-3.5 !text-xs font-bold text-red-400 hover:text-red-300 hover:border-red-400/40 cursor-pointer shrink-0"
+                aria-label="Cancel decryption"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={decode}
+              disabled={!stegoSrc && !audioBuffer}
+              className="btn-azure w-full !py-3.5 !text-base cursor-pointer"
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
+              <Unlock size={17} />
+              <span>Extract & Decrypt Secret Payload</span>
+            </button>
+          )}
+
+          {/* Decoded Results Section */}
+          {result && (
+            <div ref={resultRef} className="card animate-rise p-5 sm:p-6 space-y-4 scroll-mt-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-black/60 border-b-white/5">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400 shrink-0">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-black/60 border-t-white/30 bg-gradient-to-b from-[#52b788] to-[#388a62] text-[#071a10] shadow-sm shrink-0">
                     <CheckCircle2 size={16} />
                   </div>
                   <div>
-                    <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                      <span>{result.isDecoy ? 'Honey-Vault Decoy Payload Unlocked' : 'Secret Payload Extracted Successfully'}</span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        DECRYPTED
+                    <h3 className="text-sm font-sans font-bold text-white flex items-center gap-2">
+                      <span>
+                        {result.isDecoy
+                          ? 'Honey-Vault Decoy Payload Unlocked'
+                          : 'Secret Payload Extracted Successfully'}
                       </span>
                     </h3>
-                    <p className="text-[11px] text-slate-400">Payload verified with authenticated cryptographic integrity.</p>
+                    <p className="text-[11px] text-[#718096]">
+                      {decryptMethod === 'keyring'
+                        ? 'Decrypted with recipient private key. Does not prove sender identity.'
+                        : 'Payload decrypted and integrity-verified with AES-GCM-256.'}
+                    </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   {result.isDecoy && (
-                    <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30">
-                      PLAUSIBLE DENIABILITY DECOY
+                    <span className="rounded bg-[#282117] border border-[#e0a96d]/40 px-2 py-0.5 font-mono text-[9px] font-bold text-[#e0a96d]">
+                      DECOY VAULT
                     </span>
                   )}
                   <button
@@ -610,64 +603,65 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
                     onClick={() => {
                       soundFx.playClick();
                       setResult(null);
-                      setTextHash('');
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 text-xs font-mono transition-colors cursor-pointer"
+                    className="btn btn-ghost !p-1 text-[#a0aec0] hover:text-[#e57373]"
+                    aria-label="Close extracted payload"
                   >
-                    Clear
+                    <X size={15} />
                   </button>
                 </div>
               </div>
 
+              {decryptMethod === 'keyring' && (
+                <div className="card-inset flex items-start gap-2.5 p-3 text-[11px] leading-relaxed text-[#a0aec0]">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-[#e0a96d]" />
+                  <span>
+                    <strong className="text-white">Sender Attribution Notice:</strong> This payload was encrypted to your public key and its ciphertext integrity is verified by AES-GCM, but QuietSend asymmetric envelopes do <em>not</em> contain a digital signature. Anyone holding your public key can generate an envelope.
+                  </span>
+                </div>
+              )}
+
               {result.type === 'text' && (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-emerald-300 font-mono font-bold flex items-center gap-1.5">
-                      <span>Decrypted Message Content:</span>
-                      <span className="text-[10px] text-slate-400 font-normal">
-                        ({result.content.length} characters)
-                      </span>
+                    <span className="text-[#a0aec0] font-mono">
+                      Decrypted Message ({result.content.length} characters)
                     </span>
                     <button
                       type="button"
                       onClick={() => copyText(result.content)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+                      className="btn btn-secondary !py-1.5 !px-3 !text-xs cursor-pointer font-bold"
                     >
-                      {copied ? <Check size={14} className="text-white" /> : <Copy size={14} />}
-                      <span>{copied ? 'Copied to Clipboard!' : 'Copy Secret Text'}</span>
+                      {copied ? <Check size={13} className="text-[#52b788]" /> : <Copy size={13} />}
+                      <span>{copied ? 'Copied!' : 'Copy Secret Message'}</span>
                     </button>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-black/90 border border-emerald-500/30 text-xs sm:text-sm text-slate-100 font-mono whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto select-all shadow-inner">
-                    {result.content || <span className="text-slate-500 italic">(Empty text message payload)</span>}
+                  <div className="card-inset p-4 text-xs sm:text-sm text-white font-mono whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto select-all">
+                    {result.content || <span className="text-[#718096] italic">(Empty message)</span>}
                   </div>
-
-                  {textHash && (
-                    <div className="p-2 rounded-lg bg-black/40 border border-white/10 text-[10px] text-slate-400 font-mono flex items-center justify-between gap-2">
-                      <span>SHA-256 Checksum:</span>
-                      <span className="text-emerald-300 truncate">{textHash}</span>
-                    </div>
-                  )}
                 </div>
               )}
 
               {result.type === 'file' && (
-                <div className="space-y-3">
-                  <span className="text-xs text-slate-300 font-bold">Extracted GhostFile Container:</span>
+                <div className="space-y-2">
+                  <span className="text-xs text-[#a0aec0] font-bold font-mono">
+                    Extracted GhostFile Container:
+                  </span>
                   <FileChip name={result.name} data={result.data} />
                 </div>
               )}
 
               {result.type === 'vault' && (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-300 font-bold">
-                      Extracted GhostVault Multi-File Archive ({result.files.length} items):
+                    <span className="text-xs text-[#a0aec0] font-bold font-mono">
+                      Extracted GhostVault ({result.files.length} items):
                     </span>
                     <button
                       type="button"
                       onClick={() => downloadAllVaultFiles(result.files)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors cursor-pointer shadow-md"
+                      className="btn btn-secondary !py-1.5 !px-3 !text-xs cursor-pointer"
                     >
                       <Download size={13} />
                       <span>Download All Files</span>
@@ -676,65 +670,46 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
 
                   <div className="space-y-2 max-h-72 overflow-y-auto">
                     {result.files.map((f, i) => (
-                      <FileChip key={i} name={f.name} data={f.data} />
+                      <FileChip key={`${f.name}-${f.data.length}-${i}`} name={f.name} data={f.data} />
                     ))}
                   </div>
                 </div>
               )}
 
               {result.type === 'binary' && (
-                <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-200 text-xs space-y-3">
-                    <div className="flex items-center gap-2 font-bold text-amber-300">
-                      <Lock size={16} />
-                      <span>Encrypted Secret Payload Detected ({result.data.length} Bytes)</span>
+                <div className="space-y-3">
+                  <div className="card-inset p-3.5 text-xs text-[#a0aec0] space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-[#e0a96d]">
+                      <Unlock size={15} />
+                      <span>Encrypted Payload Detected ({result.data.length} Bytes)</span>
                     </div>
-                    <p className="text-[11px] leading-relaxed text-amber-100/90">
-                      This photo contains an <strong>encrypted secret payload</strong>. If you set a password during encoding, enter it below to decrypt and reveal your secret text:
+                    <p className="text-[11px] leading-relaxed">
+                      Enter the required password above to decrypt and parse the payload.
                     </p>
-                    <div className="flex flex-col sm:flex-row items-center gap-2">
-                      <div className="relative w-full">
-                        <input
-                          type={showPass ? 'text' : 'password'}
-                          placeholder="Enter your decryption password..."
-                          value={pass}
-                          onChange={(e) => setPass(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') decode();
-                          }}
-                          className="w-full px-3 py-2 pr-10 rounded-lg bg-black/80 border border-white/20 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400 font-mono"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPass(!showPass)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                        >
-                          {showPass ? <EyeOff size={13} /> : <Eye size={13} />}
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={decode}
-                        disabled={loading}
-                        className="w-full sm:w-auto px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs shrink-0 transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
-                      >
-                        <Unlock size={14} />
-                        <span>Decrypt Secret Text</span>
-                      </button>
-                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-black/40 border border-white/10 text-xs font-mono">
-                    <span className="text-slate-300">Raw Binary Stream:</span>
-                    <button
-                      type="button"
-                      onClick={() => downloadBlob(result.data, 'quietsend-payload.bin')}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white font-bold transition-colors cursor-pointer text-xs"
-                    >
-                      <Download size={12} />
-                      <span>Download Raw Stream ({result.data.length} B)</span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => downloadBlob(result.data, 'quietsend-payload.bin')}
+                    className="btn btn-secondary w-full !text-xs cursor-pointer"
+                  >
+                    <Download size={13} />
+                    <span>Save Raw Binary Stream ({fmtBytes(result.data.length)})</span>
+                  </button>
+                </div>
+              )}
+
+              {carrierHash && (
+                <div className="card-inset flex items-center justify-between gap-2 p-2.5 text-xs font-mono">
+                  <span className="text-[#718096] truncate">Carrier SHA-256 Digest: {carrierHash}</span>
+                  <button
+                    type="button"
+                    onClick={copyCarrierHash}
+                    className="btn btn-ghost !p-1 text-[#a0aec0] hover:text-white"
+                    title="Copy Carrier SHA-256 Digest"
+                  >
+                    {copiedHash ? <Check size={12} className="text-[#52b788]" /> : <Copy size={12} />}
+                  </button>
                 </div>
               )}
             </div>

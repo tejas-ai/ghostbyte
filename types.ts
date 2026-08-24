@@ -1,12 +1,4 @@
-export enum ToolType {
-  HOME = 'home',
-  ENCODER = 'encoder',
-  DECODER = 'decoder',
-  COMPARATOR = 'comparator',
-  SETTINGS = 'settings'
-}
-
-export type TabId = 'encoder' | 'decoder' | 'forensics' | 'settings' | 'home' | 'comparator' | ToolType;
+export type TabId = 'encoder' | 'decoder' | 'forensics' | 'settings' | 'comparator';
 
 export type LangCode = 'EN' | 'HI' | 'KN' | 'ES' | 'FR';
 export type Language = 'English' | 'Hindi' | 'Kannada' | 'Spanish' | 'French' | LangCode;

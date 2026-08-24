@@ -9,13 +9,13 @@
  * no error and no recovery short of a page reload.
  */
 
-import { embedChunks, bytesToChunks, DENSITY_BITS, type CapacityDensity } from './bitCodec';
+import { embedChunks, bytesToChunks, extractBits, DENSITY_BITS, type CapacityDensity } from './bitCodec';
 
-/** Worker embedding is CPU-bound; well past this, something is wrong. */
+/** Worker embedding/extraction is CPU-bound; well past this, something is wrong. */
 const WORKER_TIMEOUT_MS = 120_000;
 
 interface PendingRequest {
-  resolve: (buffer: ArrayBuffer) => void;
+  resolve: (buffer: ArrayBuffer | null) => void;
   reject: (err: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 }
@@ -57,8 +57,11 @@ function getWorker(): Worker | null {
     worker.onmessage = (e: MessageEvent) => {
       const { id, type, result, error } = e.data ?? {};
       settle(id, (p) => {
-        if (type === 'ENCODE_PIXELS_SUCCESS') p.resolve(result as ArrayBuffer);
-        else p.reject(new Error(error || 'Worker execution failed'));
+        if (type === 'ENCODE_PIXELS_SUCCESS' || type === 'EXTRACT_BITS_SUCCESS') {
+          p.resolve((result as ArrayBuffer) ?? null);
+        } else {
+          p.reject(new Error(error || 'Worker execution failed'));
+        }
       });
     };
 
@@ -101,7 +104,7 @@ export async function processPixelsWithWorker(
       }, WORKER_TIMEOUT_MS);
 
       pendingRequests.set(id, {
-        resolve: (buffer) => resolve(new Uint8ClampedArray(buffer)),
+        resolve: (buffer) => resolve(buffer ? new Uint8ClampedArray(buffer) : pxData),
         reject,
         timer,
       });
@@ -145,3 +148,42 @@ function fallbackEncode(
   }
   return px;
 }
+
+export async function extractBitsWithWorker(
+  pxData: Uint8ClampedArray,
+  totalRgbChannels: number,
+  density: CapacityDensity,
+): Promise<Uint8Array | null> {
+  const worker = getWorker();
+  const bits = DENSITY_BITS[density] ?? DENSITY_BITS.lsb2;
+  if (!worker) return extractBits(pxData, totalRgbChannels, bits);
+
+  const id = ++reqCounter;
+
+  try {
+    return await new Promise<Uint8Array | null>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        settle(id, (p) => p.reject(new Error('Steganography extraction worker timed out.')));
+      }, WORKER_TIMEOUT_MS);
+
+      pendingRequests.set(id, {
+        resolve: (buffer) => resolve(buffer ? new Uint8Array(buffer) : null),
+        reject,
+        timer,
+      });
+
+      try {
+        const pxBuf = pxData.buffer.slice(pxData.byteOffset, pxData.byteOffset + pxData.byteLength);
+        worker.postMessage(
+          { type: 'EXTRACT_BITS', id, payload: { pxData: pxBuf, totalRgbChannels, density } },
+          [pxBuf],
+        );
+      } catch (err) {
+        settle(id, (p) => p.reject(err instanceof Error ? err : new Error('Could not dispatch to extraction worker.')));
+      }
+    });
+  } catch {
+    return extractBits(pxData, totalRgbChannels, bits);
+  }
+}
+

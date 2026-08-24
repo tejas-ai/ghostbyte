@@ -1,22 +1,45 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
+import fs from 'node:fs'
 
 /**
- * Vite configuration — stripped to the essentials.
- *
- * The previous 342-line file was ~85% Figma Make scaffolding that
- * hard-imported .figma/make/site.json (deleting .figma/ broke the build),
- * injected duplicate <meta> tags on top of the ones already in index.html
- * (two og:title, two og:image, two twitter:image etc.), and contained an
- * unescaped Google Analytics injection path keyed off site.json.
- *
- * The manualChunks order is also fixed: 'lucide-react' contains the
- * substring 'react', so the previous code matched it in the react branch
- * and the vendor-icons chunk was never emitted. The icon branch now runs
- * first, and the framer-motion branch is removed because the package is
- * imported by nothing in the codebase.
+ * Stamping plugin to ensure __SW_BUILD_ID__ inside public/sw.js is transformed
+ * in dist/sw.js upon build completion, rotating caches cleanly across deploys.
  */
+function stampServiceWorker(buildId: string): Plugin {
+  return {
+    name: 'stamp-service-worker',
+    closeBundle() {
+      const distSwPath = path.resolve(import.meta.dirname, 'dist', 'sw.js');
+      if (fs.existsSync(distSwPath)) {
+        let content = fs.readFileSync(distSwPath, 'utf8');
+        content = content.replace(/const BUILD_ID = [^;]+;/, `const BUILD_ID = ${JSON.stringify(buildId)};`);
+        fs.writeFileSync(distSwPath, content, 'utf8');
+      }
+    },
+  };
+}
+
+/**
+ * Ensures Vite local dev server runs with React Refresh preamble by relaxing CSP
+ * strictly in development mode, while maintaining strict script-src 'self' in production.
+ */
+function devCspPlugin(isDev: boolean): Plugin {
+  return {
+    name: 'dev-csp-plugin',
+    transformIndexHtml(html) {
+      if (isDev) {
+        return html.replace(
+          "script-src 'self';",
+          "script-src 'self' 'unsafe-inline';"
+        );
+      }
+      return html;
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const isDev = mode === 'development';
   // Stamp the SW cache name so it rotates on every deploy.
@@ -45,7 +68,7 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    plugins: [react()],
+    plugins: [react(), devCspPlugin(isDev), stampServiceWorker(buildId)],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),
