@@ -292,7 +292,7 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
       </div>
       <div className="space-y-2">
         {[
-          { id: 'threat_model', label: 'Threat Model & Cryptographic Boundaries', desc: 'What QuietSend resists and what it does not' },
+          { id: 'threat_model', label: t.settings.threat_model, desc: 'What QuietSend resists and what it does not' },
           { id: 'privacy', label: 'Zero-Server-Retention Privacy Policy', desc: 'Complete client-side sandbox isolation' },
           { id: 'terms', label: 'Terms of Service', desc: 'Open license & operational boundaries' },
           { id: 'guidelines', label: 'Operational Security Guidelines', desc: 'Preventing differential steganography leaks' },
@@ -472,7 +472,7 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
       {activeView === 'demos' && renderDemosView()}
       {activeView === 'threat_model' &&
         renderSimpleTextView(
-          'Threat Model & Cryptographic Boundaries',
+          t.settings.threat_model,
           getThreatModelContent(language)
         )}
       {activeView === 'privacy' &&

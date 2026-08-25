@@ -169,6 +169,7 @@ export interface Translations {
         privacy: string;
         privacy_desc: string;
         guidelines: string;
+        threat_model: string;
         guidelines_desc: string;
         blog: string;
         blog_desc: string;
@@ -420,6 +421,7 @@ export const dictionaries: Record<Language, Translations> = {
             privacy: 'Privacy & Data Integrity Policy',
             privacy_desc: '100% Client-Side RAM execution transparency report',
             guidelines: 'Security & Operational Guidelines',
+            threat_model: "Threat Model & Cryptographic Boundaries",
             guidelines_desc: 'Best practices for impenetrable steganographic transmissions',
             blog: 'Engineering Intel & Whitepapers',
             blog_desc: 'Deep-dive cryptographic articles and spatial noise analysis',
@@ -670,6 +672,7 @@ export const dictionaries: Record<Language, Translations> = {
             privacy: 'गोपनीयता और डेटा अखंडता नीति',
             privacy_desc: '100% क्लाइंट-साइड RAM निष्पादन पारदर्शिता रिपोर्ट',
             guidelines: 'सुरक्षा और परिचालन दिशानिर्देश',
+            threat_model: "ख़तरा मॉडल और क्रिप्टोग्राफ़िक सीमाएँ",
             guidelines_desc: 'अभेद्य स्टैगनोग्राफिक ट्रांसमिशन के लिए सर्वोत्तम अभ्यास',
             blog: 'इंजीनियरिंग इंटेल और श्वेतपत्र',
             blog_desc: 'गहन क्रिप्टोग्राफ़िक लेख और स्थानिक शोर विश्लेषण',
@@ -920,6 +923,7 @@ export const dictionaries: Record<Language, Translations> = {
             privacy: 'ಗೌಪ್ಯತೆ ಮತ್ತು ಡೇಟಾ ಸಮಗ್ರತೆ ನೀತಿ',
             privacy_desc: '100% ಕ್ಲೈಂಟ್-ಸೈಡ್ RAM ಎಕ್ಸಿಕ್ಯೂಶನ್ ಪಾರದರ್ಶಕತೆ ವರದಿ',
             guidelines: 'ಭದ್ರತೆ ಮತ್ತು ಕಾರ್ಯಾಚರಣೆಯ ಮಾರ್ಗಸೂಚಿಗಳು',
+            threat_model: "ಅಪಾಯ ಮಾದರಿ ಮತ್ತು ಕ್ರಿಪ್ಟೋಗ್ರಾಫಿಕ್ ಮಿತಿಗಳು",
             guidelines_desc: 'ಅಭೇದ್ಯ ಸ್ಟೆಗಾನೋಗ್ರಾಫಿಕ್ ಪ್ರಸರಣಗಳಿಗಾಗಿ ಉತ್ತಮ ಅಭ್ಯಾಸಗಳು',
             blog: 'ಎಂಜಿನಿಯರಿಂಗ್ ಇಂಟೆಲ್ ಮತ್ತು ಶ್ವೇತಪತ್ರಗಳು',
             blog_desc: 'ಆಳವಾದ ಕ್ರಿಪ್ಟೋಗ್ರಾಫಿಕ್ ಲೇಖನಗಳು ಮತ್ತು ಪ್ರಾದೇಶಿಕ ಶಬ್ದ ವಿಶ್ಲೇಷಣೆ',
@@ -1170,6 +1174,7 @@ export const dictionaries: Record<Language, Translations> = {
             privacy: 'Política de Privacidad e Integridad de Datos',
             privacy_desc: 'Informe de transparencia de ejecución en RAM 100% del lado del cliente',
             guidelines: 'Directrices de Seguridad y Operativas',
+            threat_model: "Modelo de Amenazas y Límites Criptográficos",
             guidelines_desc: 'Mejores prácticas para transmisiones esteganográficas impenetrables',
             blog: 'Intel de Ingeniería y Libros Blancos',
             blog_desc: 'Artículos criptográficos detallados y análisis de ruido espacial',
@@ -1420,6 +1425,7 @@ export const dictionaries: Record<Language, Translations> = {
             privacy: 'Politique de Confidentialité et d\'Intégrité des Données',
             privacy_desc: 'Rapport de transparence d\'exécution en RAM 100% côté client',
             guidelines: 'Directives de Sécurité et Opérationnelles',
+            threat_model: "Modèle de Menaces et Limites Cryptographiques",
             guidelines_desc: 'Meilleures pratiques pour des transmissions stéganographiques impénétrables',
             blog: 'Intel d\'Ingénierie et Livres Blancs',
             blog_desc: 'Articles cryptographiques approfondis et analyse du bruit spatial',
