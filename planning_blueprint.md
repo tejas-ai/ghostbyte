@@ -1,31 +1,22 @@
 # QuietSend Planning Blueprint
 
-## 1. Monetization Possibilities (Earning Money)
+## 1. Commercial Strategy & Monetization Framework
 
-### A. The Freemium Model (Recommended)
-This is the most standard and effective model for software tools. You give away a capable "Free" version to get users, and charge for "Pro" features.
+### A. Free Web App + Paid Signed Native Apps (Primary Model)
+Instead of artificial client-side paywalls in open-source JavaScript, distribute the full web application for free and sell cryptographically signed native desktop/mobile binaries ($15–$25 one-time):
+* **Web App ($0)**: Open-source, complete feature set, serving as the high-trust top-of-funnel proof.
+* **Signed Native Apps ($15–$25 on Mac/Windows/iOS App Stores)**: Delivers an authentic security upgrade — an immutable, signed offline binary that cannot be modified on the fly by a compromised web host or DNS.
 
-*   **Free Tier**:
-    *   Hide Text in Images.
-    *   Hide Images in Images.
-    *   Basic Encryption (AES-GCM).
-    *   Limit file size (e.g., up to 5MB).
-    *   Standard UI Themes.
-*   **Pro Tier ($5/month or $50/lifetime)**:
-    *   **Hide Executables (.exe, .app)**: This is your "killer feature". Security researchers and privacy advocates will pay for this.
-    *   **Steganography in Audio/Video**: Future expansion.
-    *   **Higher File Size Limits**: e.g., up to 50MB.
-    *   **Cloud Sync**: Encrypted backup of steganographic images.
-    *   **Premium Themes**: "Cyberpunk", "Matrix", "Glassmorphism" exclusives.
+### B. Enterprise Document Watermarking & Leak Tracking (High-Ticket B2B)
+Adapt the steganographic engine for enterprise leak tracing ($5,000–$25,000/yr):
+* Embeds imperceptible, unique recipient serial numbers into sensitive PDF decks, financial releases, and confidential media.
+* Provides mathematical proof of source identity if confidential materials leak to the press or competitors.
 
-### B. Donations & Sponsorships
-Since *QuietSend* is privacy-focused, users may prefer supporting open-source development over buying a product.
-*   **GitHub Sponsors**: Add a "Sponsor" button to your repo.
-*   **Buy Me a Coffee / Ko-fi**: Simple links for small one-time donations.
-*   **Crypto Donations**: Accept Bitcoin/Monero (fits the privacy niche).
+### C. Career Portfolio & Systems Demonstration
+* Serves as an applied cryptography and systems portfolio (ECDH/HKDF, 600k PBKDF2, Web Workers, WCAG a11y, 5-language i18n, offline PWA architecture) for high-leverage security engineering opportunities.
 
-### C. Enterprise / White Label
-*   Sell a "White Label" version to companies who need secure internal communication channels. They can host it themselves with their own branding.
+### D. Community Patronage & Sponsorships
+* **GitHub Sponsors / Ko-fi / Crypto Tip Jar (Monero/Bitcoin)**: Optional non-tracking donation channels for privacy advocates to support maintenance. Hosted on separate marketing domains to preserve the enclave's zero-logging isolation.
 
 ---
 
