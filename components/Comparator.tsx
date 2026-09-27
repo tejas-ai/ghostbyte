@@ -35,14 +35,18 @@ function ImgDropZone({
 }) {
   const { t } = useLanguage();
   const [drag, setDrag] = useState(false);
+  const [error, setError] = useState('');
   const ref = useRef<HTMLInputElement>(null);
 
   const load = async (file: File) => {
     soundFx.playClick();
+    setError('');
     try {
       const { src } = await readImageFile(file);
       onLoad(file, src, file.name);
-    } catch {}
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'This image could not be opened.');
+    }
   };
 
   const onDrop = (e: DragEvent) => {
@@ -89,6 +93,7 @@ function ImgDropZone({
         onChange={onChange}
       />
 
+      {error && <p role="alert" className="mb-3 text-sm text-[#e57373]">{error}</p>}
       {slot ? (
         <div className="space-y-3">
           <div className="relative rounded-lg overflow-hidden border border-black/60 bg-[#090c12] h-40 flex items-center justify-center shadow-inner">

@@ -145,11 +145,6 @@ export default function Decoder({ onOpenKeyring, active = true }: DecoderProps) 
         soundFx.playError();
         return;
       }
-      if (!isAudio && file.size > 50 * 1024 * 1024) {
-        setError(`Carrier image size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 50 MB safety limit.`);
-        soundFx.playError();
-        return;
-      }
 
       try {
         const fileBuffer = await file.arrayBuffer();

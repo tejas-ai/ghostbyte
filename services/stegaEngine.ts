@@ -177,10 +177,7 @@ export function parseTiffToDataUrl(buffer: ArrayBuffer): {
     const ifd = ifds[0];
     const width = Number(Array.isArray(ifd.t256) ? ifd.t256[0] : undefined);
     const height = Number(Array.isArray(ifd.t257) ? ifd.t257[0] : undefined);
-    if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0 ||
-        width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION || width * height > MAX_IMAGE_PIXELS) {
-      throw new Error('TIFF dimensions exceed the image safety limit or are invalid.');
-    }
+    validateImageDimensions(width, height);
     UTIF.decodeImage(buffer, ifd);
     const rgba = UTIF.toRGBA8(ifd);
 
@@ -191,26 +188,26 @@ export function parseTiffToDataUrl(buffer: ArrayBuffer): {
     const pw = origW;
     const ph = origH;
 
-    const previewCanvas = document.createElement('canvas');
-    previewCanvas.width = pw;
-    previewCanvas.height = ph;
-    const previewCtx = previewCanvas.getContext('2d', { willReadFrequently: true })!;
+    const previewCtx = imageCanvas(pw, ph);
+    const previewCanvas = previewCtx.canvas as HTMLCanvasElement;
 
     previewCtx.putImageData(new ImageData(new Uint8ClampedArray(rgba), origW, origH), 0, 0);
+
+    const dataUrl = previewCanvas.toDataURL('image/png');
+    if (dataUrl === 'data:,') throw new Error(IMAGE_MEMORY_ERROR);
 
     return {
       // Keep the intermediate carrier lossless. JPEG here destroys pixels
       // before the LSB encoder ever sees them and makes TIFF capacity claims
       // disagree with the actual rendered image.
-      dataUrl: previewCanvas.toDataURL('image/png'),
+      dataUrl,
       width: origW,
       height: origH,
       renderedWidth: pw,
       renderedHeight: ph,
     };
   } catch (error) {
-    if (error instanceof Error && error.message.includes('safety limit')) throw error;
-    return null;
+    throw new Error(error instanceof Error ? `Unable to decode TIFF: ${error.message}` : IMAGE_MEMORY_ERROR);
   }
 }
 
@@ -355,52 +352,34 @@ export function getScaledDimensions(w: number, h: number, maxDim: number): { w: 
   return { w: Math.round(w * ratio), h: Math.round(h * ratio) };
 }
 
-export const MAX_CARRIER_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
-/**
- * True on devices whose canvas allocation is tight enough that a large photo
- * blanks the canvas or kills the tab.
- *
- * The user-agent test alone is not enough. Since iPadOS 13, Safari on iPad
- * reports a desktop string -- "Macintosh; Intel Mac OS X" -- with no `iPad`
- * token anywhere in it, so the obvious regex has not matched a stock iPad in
- * years and hands the largest-photo device the desktop ceiling.
- *
- * `maxTouchPoints` is what separates them: an iPad reports 5, and a real Mac
- * reports 0 even with a trackpad or a connected touchscreen display. Paired
- * with the Macintosh UA that is a reliable iPadOS signal, and it avoids the
- * deprecated `navigator.platform`.
- *
- * Evaluated once at module load, which is fine -- none of these inputs change
- * within a session -- and guarded for non-browser contexts so the module stays
- * importable from the test runner.
- */
-function detectConstrainedCanvas(): boolean {
-  if (typeof navigator === 'undefined') return false;
-
-  const ua = navigator.userAgent;
-  if (/iPhone|iPod|Android/i.test(ua)) return true;
-
-  // iPadOS 13+ masquerading as macOS.
-  if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return true;
-
-  // Older iPads, and anything still sending a genuine iPad token.
-  if (/iPad/i.test(ua)) return true;
-
-  return false;
+// Carrier uploads have no app-defined byte, dimension, or megapixel cap.
+// Actual image decoding and canvas allocation are bounded by the browser/device.
+function validateImageDimensions(width: number, height: number): void {
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0 ||
+      !Number.isSafeInteger(width * height * 4)) {
+    throw new Error('The image has invalid dimensions.');
+  }
 }
 
-const isMobile = detectConstrainedCanvas();
-export const MAX_IMAGE_DIMENSION = isMobile ? 4096 : 8192; // 4096 px on mobile / 8192 px on desktop
-export const MAX_IMAGE_PIXELS = isMobile ? 16_777_216 : 67_108_864; // ~16.7 MP on mobile / ~67 MP on desktop
+const IMAGE_MEMORY_ERROR = 'Your browser could not process this image at its original resolution. Free some memory or try a browser/device with more available memory.';
+
+function imageCanvas(width: number, height: number): CanvasRenderingContext2D {
+  validateImageDimensions(width, height);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx || canvas.width !== width || canvas.height !== height) {
+    throw new Error(IMAGE_MEMORY_ERROR);
+  }
+  return ctx;
+}
+
 export const MAX_PAYLOAD_FILE_SIZE = 30 * 1024 * 1024; // 30 MB per payload file
 export const MAX_TOTAL_PAYLOAD_SIZE = 50 * 1024 * 1024; // 50 MB total archive
 
 /** Helper to read any File (PNG, JPG, WebP, BMP, ZIP) into image source & dimensions */
 export async function readImageFile(file: File): Promise<{ src: string; w: number; h: number }> {
-  if (file.size > MAX_CARRIER_FILE_SIZE) {
-    throw new Error(`Carrier file size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 50 MB safety limit.`);
-  }
-
   const isZip = /\.zip$/i.test(file.name) || file.type.includes('zip');
   if (isZip) {
     try {
@@ -418,18 +397,10 @@ export async function readImageFile(file: File): Promise<{ src: string; w: numbe
 
   const isTiff = /\.tiff?$/i.test(file.name) || file.type.includes('tiff') || file.type.includes('tif');
   if (isTiff) {
-    try {
-      const buf = await file.arrayBuffer();
-      const tiff = parseTiffToDataUrl(buf);
-      if (tiff) {
-        if (tiff.width > MAX_IMAGE_DIMENSION || tiff.height > MAX_IMAGE_DIMENSION || tiff.width * tiff.height > MAX_IMAGE_PIXELS) {
-          throw new Error(`Image resolution (${tiff.width}x${tiff.height}) exceeds the ${isMobile ? 'mobile limit of 4096x4096 (16.7 MP)' : 'safety limit of 8192x8192 (67 MP)'}.`);
-        }
-        return { src: tiff.dataUrl, w: tiff.renderedWidth, h: tiff.renderedHeight };
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message.includes('limit')) throw err;
-      // fallback
+    const buf = await file.arrayBuffer();
+    const tiff = parseTiffToDataUrl(buf);
+    if (tiff) {
+      return { src: tiff.dataUrl, w: tiff.renderedWidth, h: tiff.renderedHeight };
     }
   }
 
@@ -439,9 +410,11 @@ export async function readImageFile(file: File): Promise<{ src: string; w: numbe
     img.onload = () => {
       const w = img.naturalWidth || img.width;
       const h = img.naturalHeight || img.height;
-      if (w > MAX_IMAGE_DIMENSION || h > MAX_IMAGE_DIMENSION || w * h > MAX_IMAGE_PIXELS) {
+      try {
+        validateImageDimensions(w, h);
+      } catch (error) {
         URL.revokeObjectURL(blobUrl);
-        reject(new Error(`Image resolution (${w}x${h}) exceeds the ${isMobile ? 'mobile limit of 4096x4096 (16.7 MP)' : 'safety limit of 8192x8192 (67 MP)'}.`));
+        reject(error);
         return;
       }
       resolve({ src: blobUrl, w, h });
@@ -449,18 +422,19 @@ export async function readImageFile(file: File): Promise<{ src: string; w: numbe
     img.onerror = async () => {
       URL.revokeObjectURL(blobUrl);
       try {
+        const header = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+        const isTiffHeader = (header[0] === 0x49 && header[1] === 0x49 && header[2] === 42 && header[3] === 0) ||
+          (header[0] === 0x4d && header[1] === 0x4d && header[2] === 0 && header[3] === 42);
+        if (!isTiffHeader) throw new Error('This image could not be decoded. It may be damaged, unsupported, or too large for the memory available in this browser.');
         const buf = await file.arrayBuffer();
         const tiff = parseTiffToDataUrl(buf);
         if (tiff) {
-          if (tiff.width > MAX_IMAGE_DIMENSION || tiff.height > MAX_IMAGE_DIMENSION || tiff.width * tiff.height > MAX_IMAGE_PIXELS) {
-            return reject(new Error(`Image resolution (${tiff.width}x${tiff.height}) exceeds the ${isMobile ? 'mobile limit of 4096x4096 (16.7 MP)' : 'safety limit of 8192x8192 (67 MP)'}.`));
-          }
           return resolve({ src: tiff.dataUrl, w: tiff.renderedWidth, h: tiff.renderedHeight });
         }
       } catch (err) {
-        if (err instanceof Error && err.message.includes('safety limit')) return reject(err);
+        return reject(err);
       }
-      reject(new Error('Failed to load image file.'));
+      reject(new Error('This image could not be decoded. It may be damaged, unsupported, or too large for the memory available in this browser.'));
     };
     img.src = blobUrl;
   });
@@ -715,89 +689,47 @@ function readU32LE(buf: Uint8Array, off = 0): number {
 }
 
 // ── Load image → canvas (Fast createImageBitmap path) ─────────────────────────
+function drawImageCanvas(image: CanvasImageSource, width: number, height: number, maxDim?: number) {
+  const { w, h } = getScaledDimensions(width, height, maxDim ?? 0);
+  try {
+    const ctx = imageCanvas(w, h);
+    ctx.drawImage(image, 0, 0, w, h);
+    return { ctx, w, h };
+  } catch {
+    throw new Error(IMAGE_MEMORY_ERROR);
+  }
+}
+
 function loadCanvasImg(src: string, maxDim?: number): Promise<{ ctx: CanvasRenderingContext2D; w: number; h: number }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      let w = img.naturalWidth || img.width;
-      let h = img.naturalHeight || img.height;
-
-      if (maxDim && (w > maxDim || h > maxDim)) {
-        const ratio = Math.min(maxDim / w, maxDim / h);
-        w = Math.round(w * ratio);
-        h = Math.round(h * ratio);
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-      ctx.drawImage(img, 0, 0, w, h);
-      resolve({ ctx, w, h });
-    };
-    img.onerror = async () => {
       try {
-        const resp = await fetch(src);
-        const buf = await resp.arrayBuffer();
-        const tiff = parseTiffToDataUrl(buf);
-        if (tiff) {
-          const tiffImg = new Image();
-          tiffImg.onload = () => {
-            let w = tiff.renderedWidth;
-            let h = tiff.renderedHeight;
-            if (maxDim && (w > maxDim || h > maxDim)) {
-              const ratio = Math.min(maxDim / w, maxDim / h);
-              w = Math.round(w * ratio);
-              h = Math.round(h * ratio);
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-            ctx.drawImage(tiffImg, 0, 0, w, h);
-            resolve({ ctx, w, h });
-          };
-          tiffImg.src = tiff.dataUrl;
-          return;
-        }
-      } catch {
-        // ignore
+        resolve(drawImageCanvas(img, img.naturalWidth || img.width, img.naturalHeight || img.height, maxDim));
+      } catch (error) {
+        reject(error);
       }
-      reject(new Error('Failed to process image buffer on canvas. Please select a valid PNG, JPG, WebP, or BMP image.'));
     };
+    img.onerror = () => reject(new Error(IMAGE_MEMORY_ERROR));
     img.src = src;
   });
 }
 
-function loadCanvas(src: string, maxDim?: number): Promise<{ ctx: CanvasRenderingContext2D; w: number; h: number }> {
+async function loadCanvas(src: string, maxDim?: number): Promise<{ ctx: CanvasRenderingContext2D; w: number; h: number }> {
   if (typeof createImageBitmap !== 'undefined' && src.startsWith('blob:')) {
-    return (async () => {
-      try {
-        const resp = await fetch(src);
-        const blob = await resp.blob();
-        const bmp = await createImageBitmap(blob);
-        let w = bmp.width;
-        let h = bmp.height;
-
-        if (maxDim && (w > maxDim || h > maxDim)) {
-          const ratio = Math.min(maxDim / w, maxDim / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-        ctx.drawImage(bmp, 0, 0, w, h);
-        bmp.close();
-        return { ctx, w, h };
-      } catch {
-        // fallback to standard image loader
-      }
+    let bitmap: ImageBitmap;
+    try {
+      const resp = await fetch(src);
+      bitmap = await createImageBitmap(await resp.blob());
+    } catch {
       return loadCanvasImg(src, maxDim);
-    })();
+    }
+    try {
+      return drawImageCanvas(bitmap, bitmap.width, bitmap.height, maxDim);
+    } finally {
+      bitmap.close();
+    }
   }
   return loadCanvasImg(src, maxDim);
 }
@@ -809,9 +741,12 @@ export function calculateCapacity(w: number, h: number, density: CapacityDensity
 }
 
 export async function getCarrierCapacity(file: File | string, density: CapacityDensity = DEFAULT_D): Promise<number> {
-  const src = typeof file === 'string' ? file : URL.createObjectURL(file);
-  const { w, h } = await loadCanvas(src);
-  if (typeof file !== 'string') URL.revokeObjectURL(src);
+  if (typeof file !== 'string') {
+    const { src, w, h } = await readImageFile(file);
+    if (src.startsWith('blob:')) URL.revokeObjectURL(src);
+    return calculateCapacity(w, h, density);
+  }
+  const { w, h } = await loadCanvas(file);
   return calculateCapacity(w, h, density);
 }
 

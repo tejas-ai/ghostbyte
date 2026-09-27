@@ -19,6 +19,8 @@ Share the output as a **file/document or ZIP**, not a compressed chat photo. Ima
 
 The app supports offline use after its first successful online load and cache installation. Browser storage clearing or eviction requires another online visit.
 
+Carrier images have **no app-defined upload size or resolution limit** in Hide, Reveal, or Inspect. Images stay at their original resolution. The practical maximum depends on your browser's decoder, canvas support, and available device memory; very large images may require a more capable device. Limits on embedded secret-file archives and WAV audio are separate.
+
 ## Working screenshots
 
 Captured from the public HTTPS app using the built-in demo. The same exported PNG was reloaded and its message successfully decrypted and integrity-verified.

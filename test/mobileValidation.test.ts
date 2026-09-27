@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   encodeHoneyVault,
   sealDualVault,
@@ -9,9 +9,6 @@ import {
   encryptPayload,
   calcSha256,
   crc32,
-  MAX_IMAGE_DIMENSION,
-  MAX_IMAGE_PIXELS,
-  MAX_CARRIER_FILE_SIZE,
   buildZipArchive,
   parseZipArchive,
   sanitizeFilename,
@@ -26,45 +23,6 @@ import { encodeWavAudio, decodeWavAudio } from '../services/audioStegaEngine';
 import { embedChunks, extractBits } from '../services/bitCodec';
 
 describe('iOS (iPhone & iPad) & Constrained Mobile Device Validation Suite', () => {
-  const originalNavigator = globalThis.navigator;
-
-  afterEach(() => {
-    // Restore navigator
-    Object.defineProperty(globalThis, 'navigator', {
-      value: originalNavigator,
-      configurable: true,
-      writable: true,
-    });
-  });
-
-  describe('1. Device & Canvas Constrained Memory Detection', () => {
-    it('accurately identifies an iPhone UA as a constrained canvas environment', () => {
-      const iPhoneUA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
-      const isConstrained = /iPhone|iPod|Android/i.test(iPhoneUA);
-      expect(isConstrained).toBe(true);
-    });
-
-    it('accurately identifies iPadOS 13+ desktop-spoofed UA via maxTouchPoints > 1', () => {
-      const iPadOS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15';
-      const maxTouchPoints = 5; // iPad multitouch hardware
-      const isConstrained = (/Macintosh/.test(iPadOS_UA) && maxTouchPoints > 1) || /iPad/i.test(iPadOS_UA);
-      expect(isConstrained).toBe(true);
-    });
-
-    it('distinguishes real macOS Desktop from iPadOS (maxTouchPoints === 0)', () => {
-      const macOS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15';
-      const maxTouchPoints = 0; // Real Mac has 0 touch points
-      const isConstrained = (/Macintosh/.test(macOS_UA) && maxTouchPoints > 1) || /iPad|iPhone|Android/i.test(macOS_UA);
-      expect(isConstrained).toBe(false);
-    });
-
-    it('enforces safety bounds (4096px / 16.7 MP mobile ceiling to prevent WebKit memory blanking)', () => {
-      expect(MAX_IMAGE_DIMENSION).toBeGreaterThanOrEqual(4096);
-      expect(MAX_IMAGE_PIXELS).toBeGreaterThanOrEqual(16_777_216);
-      expect(MAX_CARRIER_FILE_SIZE).toBe(50 * 1024 * 1024);
-    });
-  });
-
   describe('2. End-to-End Cryptographic & Steganographic Mobile Workflows', () => {
     it('rejects random NUL-heavy bitstreams instead of presenting them as plaintext', () => {
       const randomCarrierBits = new Uint8Array(128);

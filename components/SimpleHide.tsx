@@ -78,11 +78,6 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
   const loadPhoto = useCallback(async (file: File) => {
     soundFx.playClick();
     setError('');
-    if (file.size > 50 * 1024 * 1024) {
-      setError(`Carrier image size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 50 MB safety limit.`);
-      soundFx.playError();
-      return;
-    }
     try {
       const { src, w, h } = await readImageFile(file);
       trackPhotoUrl(src);
