@@ -1009,11 +1009,12 @@ export interface EmbeddedFile {
   size?: number;
 }
 
-export type DecodeResult =
+export type DecodeResult = (
   | { type: 'text';   content: string; rawBytes?: Uint8Array; isDecoy?: boolean; isAsymmetric?: boolean }
   | { type: 'file';   name: string; data: Uint8Array; isDecoy?: boolean; isAsymmetric?: boolean }
   | { type: 'vault';  files: EmbeddedFile[]; isDecoy?: boolean; isAsymmetric?: boolean }
-  | { type: 'binary'; data: Uint8Array; isDecoy?: boolean; isAsymmetric?: boolean };
+  | { type: 'binary'; data: Uint8Array; isDecoy?: boolean; isAsymmetric?: boolean }
+) & { authenticated?: boolean };
 
 /** Marks an error as "the bitstream parsed, the passphrase did not fit". */
 interface DecryptError extends Error { isDecryptFailure?: true }
@@ -1049,7 +1050,7 @@ export async function openContainer(
   await yieldMainThread();
   try {
     const pt = await aesDecrypt(raw, password);
-    return unpackPayload(pt);
+    return { ...unpackPayload(pt), authenticated: true };
   } catch {
     // Not a single vault, or not this passphrase. Fall through.
   }
@@ -1080,6 +1081,7 @@ export async function openContainer(
         if (declared > inner.length - 4) continue;
         const result = unpackPayload(new Uint8Array(inner.subarray(4, 4 + declared)));
         result.isDecoy = isDecoy;
+        result.authenticated = true;
         return result;
       } finally {
         zeroFill(inner);
@@ -1101,6 +1103,7 @@ async function tryDecodeDensity(
   password?: string,
   onProgress?: ProgressCallback,
   abortSignal?: AbortSignal,
+  privateKeys: readonly string[] = [],
 ): Promise<DecodeResult> {
   if (abortSignal?.aborted) throw new Error('Extraction cancelled by user.');
   
@@ -1108,6 +1111,19 @@ async function tryDecodeDensity(
   if (!rawData) {
     throw new Error(`No valid ${density.toUpperCase()} payload detected`);
   }
+
+  return decodePayload(rawData, password, onProgress, abortSignal, privateKeys);
+}
+
+/** Interpret image/audio bytes without confusing saved private keys with passphrases. */
+export async function decodePayload(
+  rawData: Uint8Array,
+  password?: string,
+  onProgress?: ProgressCallback,
+  abortSignal?: AbortSignal,
+  privateKeys: readonly string[] = [],
+): Promise<DecodeResult> {
+  if (abortSignal?.aborted) throw new Error('Extraction cancelled by user.');
 
   // Legacy GHOST_HONEY dual container, written before the fixed-halves layout.
   if (rawData.length >= 19 && constantTimeCompare(rawData.subarray(0, 11), GHOST_HONEY_SIG)) {
@@ -1125,12 +1141,13 @@ async function tryDecodeDensity(
             const pt = await aesDecrypt(decoyCipher, password);
             const res = unpackPayload(pt);
             res.isDecoy = true;
+            res.authenticated = true;
             return res;
           } catch {
             // decoy did not open; try the primary block
           }
           try {
-            return unpackPayload(await aesDecrypt(primaryCipher, password));
+            return { ...unpackPayload(await aesDecrypt(primaryCipher, password)), authenticated: true };
           } catch {
             throw decryptFailure('Incorrect passphrase for this Honey-Vault container.');
           }
@@ -1139,24 +1156,34 @@ async function tryDecodeDensity(
     }
   }
 
-  // Asymmetric envelope: the "password" is a PKCS#8 private key.
+  // Saved identities are used only for an asymmetric envelope. The password
+  // candidate preserves older API callers that supplied a PKCS#8 key there.
   if (isAsymmetricPayload(rawData)) {
-    if (!password || password.length === 0) {
-      throw new Error('This payload is encrypted to a public key. Unlock it with the matching private key from your Keyring.');
-    }
+    const candidates = [...new Set([...privateKeys, ...(password ? [password] : [])])];
     onProgress?.(65, 'Decrypting with asymmetric private key...');
     await yieldMainThread();
-    try {
-      const res = unpackPayload(await decryptWithPrivateKey(rawData, password));
-      res.isAsymmetric = true;
-      return res;
-    } catch (e) {
-      throw decryptFailure(e instanceof Error ? e.message : 'Private key could not open this payload.');
+    for (const key of candidates) {
+      if (abortSignal?.aborted) throw new Error('Extraction cancelled by user.');
+      try {
+        const res = unpackPayload(await decryptWithPrivateKey(rawData, key));
+        return { ...res, isAsymmetric: true, authenticated: true };
+      } catch {
+        // A different saved identity may be the recipient.
+      }
     }
+    throw decryptFailure('This payload is encrypted to a public key. Unlock it with the matching private key from your Keyring.');
   }
 
   if (password && password.length > 0) {
-    return await openContainer(rawData, password, onProgress, abortSignal);
+    try {
+      return await openContainer(rawData, password, onProgress, abortSignal);
+    } catch (err) {
+      if (abortSignal?.aborted) throw err;
+      // A leftover password must not prevent reading a recognized plaintext payload.
+      const plain = unpackPayload(rawData);
+      if (plain.type !== 'binary') return plain;
+      throw err;
+    }
   }
 
   return unpackPayload(rawData);
@@ -1168,6 +1195,7 @@ export async function decodeImage(
   password?: string,
   onProgress?: ProgressCallback,
   abortSignal?: AbortSignal,
+  privateKeys: readonly string[] = [],
 ): Promise<DecodeResult> {
   onProgress?.(15, 'Loading carrier pixel matrix...');
   await yieldMainThread();
@@ -1185,7 +1213,7 @@ export async function decodeImage(
     if (abortSignal?.aborted) throw new Error('Extraction cancelled by user.');
     await yieldMainThread();
     try {
-      const res = await tryDecodeDensity(px, totalRgbChannels, density, password, onProgress, abortSignal);
+      const res = await tryDecodeDensity(px, totalRgbChannels, density, password, onProgress, abortSignal, privateKeys);
       // A binary result means the bits came out but nothing recognised them, so
       // keep probing: a later density may produce a real payload.
       if (res.type !== 'binary') {
@@ -1257,7 +1285,7 @@ export function unpackPayload(data: Uint8Array): DecodeResult {
       const rawName = dec.decode(data.subarray(off, off + nameLen)); off += nameLen;
       if (off + 4 <= data.length) {
         const dataLen = readU32LE(data, off); off += 4;
-        if (dataLen <= data.length - off) {
+        if (dataLen === data.length - off) {
           return {
             type: 'file',
             name: sanitizeFilename(rawName),

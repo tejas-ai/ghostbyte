@@ -22,16 +22,13 @@ import {
   decodeImage,
   downloadBlob,
   readImageFile,
-  unpackPayload,
+  decodePayload,
   calcSha256,
-  openContainer,
   type DecodeResult,
   type EmbeddedFile,
 } from '../services/stegaEngine';
 import { decodeWavAudio, parseWavHeader } from '../services/audioStegaEngine';
 import {
-  isAsymmetricPayload,
-  decryptWithPrivateKey,
   getStoredKeyring,
   type KeyPairInfo,
 } from '../services/asymmetricCrypto';
@@ -227,6 +224,7 @@ export default function Decoder({ onOpenKeyring, active = true }: DecoderProps) 
   };
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortControllerRef.current?.abort(), []);
 
   const decode = async () => {
     if (!stegoSrc && !audioBuffer) return;
@@ -240,15 +238,10 @@ export default function Decoder({ onOpenKeyring, active = true }: DecoderProps) 
     soundFx.playScan();
 
     try {
-      let secretParam = pass.trim() || undefined;
-      if (decryptMethod === 'keyring') {
-        const key = keyring.find((k) => k.id === selectedKeyId) ?? keyring[0];
-        if (!key) throw new Error('Select a private key from Keyring before decrypting this image.');
-        secretParam = key.privateKeyArmor;
-      }
-
+      const secretParam = decryptMethod === 'passphrase' ? pass.trim() || undefined : undefined;
+      const selectedKey = keyring.find((key) => key.id === selectedKeyId) ?? keyring[0];
+      const privateKeys = decryptMethod === 'keyring' && selectedKey ? [selectedKey.privateKeyArmor] : [];
       let extractedResult: DecodeResult;
-      let wasAuthenticated = false;
 
       if (carrierKind === 'audio' && audioBuffer) {
         setProgress({ pct: 30, status: 'Probing 16-bit PCM WAV bitplanes…' });
@@ -258,47 +251,23 @@ export default function Decoder({ onOpenKeyring, active = true }: DecoderProps) 
 
         if (controller.signal.aborted) throw new Error('Extraction cancelled by user.');
 
-        if (isAsymmetricPayload(rawPayload)) {
-          setProgress({ pct: 70, status: 'Performing ECDH P-256 private key decryption…' });
-          const key = keyring.find((k) => k.id === selectedKeyId) ?? keyring[0];
-          if (!key) {
-            throw new Error(
-              'This container is locked to an asymmetric public key. Please select a matching private key.'
-            );
-          }
-          const decryptedPlaintext = await decryptWithPrivateKey(rawPayload, key.privateKeyArmor);
-          extractedResult = unpackPayload(decryptedPlaintext);
-          wasAuthenticated = true;
-        } else if (secretParam) {
-          setProgress({ pct: 70, status: 'Opening AES-GCM-256 authenticated vault…' });
-          try {
-            extractedResult = await openContainer(rawPayload, secretParam, undefined, controller.signal);
-            wasAuthenticated = true;
-          } catch (err) {
-            if (controller.signal.aborted) throw err;
-            const fallback = unpackPayload(rawPayload);
-            if (fallback.type === 'binary') {
-              throw new Error('Authentication failed: Passphrase incorrect.');
-            }
-            extractedResult = fallback;
-          }
-        } else {
-          extractedResult = unpackPayload(rawPayload);
-        }
+        extractedResult = await decodePayload(rawPayload, secretParam,
+          (pct, status) => setProgress({ pct, status }), controller.signal, privateKeys);
       } else if (stegoSrc) {
         extractedResult = await decodeImage(
           stegoSrc,
           secretParam,
           (pct, status) => setProgress({ pct, status }),
           controller.signal,
+          privateKeys,
         );
-        wasAuthenticated = Boolean(secretParam);
       } else {
         throw new Error('No carrier media loaded.');
       }
 
+      if (controller.signal.aborted) throw new Error('Extraction cancelled by user.');
       setResult(extractedResult);
-      setAuthenticated(wasAuthenticated);
+      setAuthenticated(Boolean(extractedResult.authenticated));
       soundFx.playSuccess();
     } catch (e: unknown) {
       setError(
@@ -319,7 +288,7 @@ export default function Decoder({ onOpenKeyring, active = true }: DecoderProps) 
     navigator.clipboard.writeText(content).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(() => setError('Could not copy to clipboard. Select and copy the text manually.'));
   };
 
   const downloadAllVaultFiles = async (vaultFiles: EmbeddedFile[]) => {
@@ -701,10 +670,10 @@ export default function Decoder({ onOpenKeyring, active = true }: DecoderProps) 
                   <div className="card-inset p-3.5 text-xs text-[#a0aec0] space-y-2">
                     <div className="flex items-center gap-2 font-bold text-[#e0a96d]">
                       <Unlock size={15} />
-                      <span>Encrypted Payload Detected ({result.data.length} Bytes)</span>
+                      <span>Unrecognized Binary Stream ({result.data.length} Bytes)</span>
                     </div>
                     <p className="text-[11px] leading-relaxed">
-                      Enter the required password above to decrypt and parse the payload.
+                      These bytes may be encrypted, damaged, or from an unsupported format. Enter a password only if the sender used one; otherwise use the original lossless carrier.
                     </p>
                   </div>
 

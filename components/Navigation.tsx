@@ -55,7 +55,7 @@ export default function Navigation({ active, onTab, onOpenKeyring, onOpenGuide }
       {/* Top highlight chamfer */}
       <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
-      <div className="mx-auto flex min-h-14 w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-3 py-2 sm:h-14 sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-0">
+      <div className="mx-auto flex min-h-14 w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-3 py-2 lg:h-14 lg:flex-nowrap sm:gap-3 sm:px-6 lg:py-0">
         {/* Brand: Physical Milled Badge */}
         <div className="flex shrink-0 items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/60 border-t-white/20 bg-gradient-to-b from-[#252c3b] to-[#171c26] shadow-[0_2px_5px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15)]">

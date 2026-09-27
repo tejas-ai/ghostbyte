@@ -20,13 +20,12 @@ import {
   decodeImage,
   downloadBlob,
   readImageFile,
-  unpackPayload,
-  openContainer,
+  decodePayload,
   buildZipArchive,
   type DecodeResult,
 } from '../services/stegaEngine';
 import { decodeWavAudio, parseWavHeader } from '../services/audioStegaEngine';
-import { isAsymmetricPayload, decryptWithPrivateKey, getStoredKeyring } from '../services/asymmetricCrypto';
+import { getStoredKeyring } from '../services/asymmetricCrypto';
 import { useRevocableUrl } from '../hooks/useRevocableUrl';
 import { useLanguage } from '../contexts/LanguageContext';
 import { soundFx } from '../services/soundFx';
@@ -55,7 +54,10 @@ export default function SimpleReveal({ active = true }: { active?: boolean }) {
 
   const [hasKeyring, setHasKeyring] = useState(false);
   useEffect(() => {
-    setHasKeyring(getStoredKeyring().length > 0);
+    const refresh = () => setHasKeyring(getStoredKeyring().length > 0);
+    refresh();
+    window.addEventListener('quietsend:keyring-updated', refresh);
+    return () => window.removeEventListener('quietsend:keyring-updated', refresh);
   }, []);
 
   const input = useRef<HTMLInputElement>(null);
@@ -119,6 +121,7 @@ export default function SimpleReveal({ active = true }: { active?: boolean }) {
   }, [result]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortControllerRef.current?.abort(), []);
 
   const reveal = async () => {
     if (!src && !audioBuffer) return;
@@ -139,28 +142,13 @@ export default function SimpleReveal({ active = true }: { active?: boolean }) {
         const raw = await decodeWavAudio(audioBuffer, 2, (_p, s) => setStatus(s));
         if (controller.signal.aborted) throw new Error('Extraction cancelled by user.');
 
-        if (isAsymmetricPayload(raw)) {
-          const key = getStoredKeyring()[0];
-          if (!key) throw new Error('This envelope was locked to an ECDH personal key not present in this browser.');
-          out = unpackPayload(await decryptWithPrivateKey(raw, key.privateKeyArmor));
-          out.isAsymmetric = true;
-        } else if (secret) {
-          try {
-            out = await openContainer(raw, secret, undefined, controller.signal);
-          } catch (err) {
-            if (controller.signal.aborted) throw err;
-            const plain = unpackPayload(raw);
-            if (plain.type === 'binary') throw err;
-            out = plain;
-          }
-        } else {
-          out = unpackPayload(raw);
-        }
+        out = await decodePayload(raw, secret, (_p, s) => setStatus(s), controller.signal,
+          getStoredKeyring().map((key) => key.privateKeyArmor));
       } else {
-        const key = getStoredKeyring()[0];
-        const effectiveSecret = secret || (key ? key.privateKeyArmor : undefined);
-        out = await decodeImage(src!, effectiveSecret, (_p, s) => setStatus(s), controller.signal);
+        out = await decodeImage(src!, secret, (_p, s) => setStatus(s), controller.signal,
+          getStoredKeyring().map((key) => key.privateKeyArmor));
       }
+      if (controller.signal.aborted) throw new Error('Extraction cancelled by user.');
 
       setResult(out);
       soundFx.playSuccess();
@@ -171,7 +159,9 @@ export default function SimpleReveal({ active = true }: { active?: boolean }) {
         return;
       }
       const raw = e instanceof Error ? e.message : '';
-      if (/passphrase|decrypt|incorrect/i.test(raw)) {
+      if (/public key|private key|keyring/i.test(raw)) {
+        setError(raw);
+      } else if (/passphrase|decrypt|incorrect/i.test(raw)) {
         setError(
           password.trim()
             ? t.simple_reveal.auth_failed
@@ -197,7 +187,7 @@ export default function SimpleReveal({ active = true }: { active?: boolean }) {
     navigator.clipboard.writeText(content).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(() => setError('Could not copy to clipboard. Select and copy the text manually.'));
   };
 
   const clear = () => {
@@ -526,16 +516,16 @@ export default function SimpleReveal({ active = true }: { active?: boolean }) {
           {result.type === 'binary' && (
             <div className="space-y-3">
               <div className="card-inset p-3.5 text-[12px] leading-relaxed text-[#a0aec0]">
-                <p className="mb-1 font-bold text-[#e0a96d]">Encrypted Stream Extracted</p>
-                <p>Enter the correct password above to decrypt and parse the inner files.</p>
+                <p className="mb-1 font-bold text-[#e0a96d]">Unrecognized Binary Stream</p>
+                <p>These bytes may be encrypted, damaged, or from an unsupported format. Enter a password only if the sender used one; otherwise use the original lossless carrier.</p>
               </div>
               <button
                 type="button"
-                onClick={() => downloadBlob(result.data, 'locked-payload.bin')}
+                onClick={() => downloadBlob(result.data, 'quietsend-payload.bin')}
                 className="btn btn-secondary w-full !text-xs cursor-pointer"
               >
                 <Download size={14} />
-                <span>Save Encrypted Binary Stream ({fmtBytes(result.data.length)})</span>
+                <span>Save Raw Binary Stream ({fmtBytes(result.data.length)})</span>
               </button>
             </div>
           )}

@@ -194,6 +194,16 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
   const audioInputRef = useRef<HTMLInputElement>(null);
   const filesInputRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+  const inputRevision = useRef(0);
+  useEffect(() => {
+    inputRevision.current++;
+    trackResultUrl(null);
+    setResult(null);
+    setResultFile(null);
+    setResultHash('');
+    return () => { inputRevision.current++; };
+  }, [carrierType, carrier, audioCarrier, density, mode, text, files, secMode, pass,
+    dualVault, decoyPass, decoyText, selectedContactId, customPublicArmor, contacts, trackResultUrl]);
 
   useEffect(() => {
     if (result && resultRef.current) {
@@ -492,6 +502,13 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
     }
 
     setLoading(true);
+    const revision = inputRevision.current;
+    const ensureCurrent = (url?: string) => {
+      if (revision !== inputRevision.current) {
+        if (url) URL.revokeObjectURL(url);
+        throw new Error('Your inputs changed during processing. Conceal again to export the updated payload.');
+      }
+    };
     setProgress({ pct: 5, status: 'Initializing cryptographic pipeline…' });
     setError('');
     setResult(null);
@@ -529,12 +546,14 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
           (pct, status) => setProgress({ pct, status })
         );
         const url = URL.createObjectURL(audioBlob);
+        ensureCurrent(url);
         trackResultUrl(url);
         setResult(url);
         setResultFile(new File([audioBlob], 'quietsend-carrier.wav', { type: 'audio/wav' }));
 
         const audioBuf = await audioBlob.arrayBuffer();
         const hash = await calcSha256(new Uint8Array(audioBuf));
+        ensureCurrent();
         setResultHash(hash);
       } else if (carrier) {
         setResultType('image');
@@ -558,15 +577,18 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
               (pct, status) => setProgress({ pct, status })
             );
 
+        ensureCurrent(url);
         trackResultUrl(url);
         setResult(url);
 
         try {
           const resp = await fetch(url);
           const blob = await resp.blob();
+          ensureCurrent();
           setResultFile(new File([blob], 'quietsend-carrier.png', { type: 'image/png' }));
           const imgBuf = await blob.arrayBuffer();
           const hash = await calcSha256(new Uint8Array(imgBuf));
+          ensureCurrent();
           setResultHash(hash);
         } catch {}
       }

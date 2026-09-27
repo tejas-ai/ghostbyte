@@ -78,6 +78,13 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
 
   const trackPhotoUrl = useRevocableUrl();
   const trackResultUrl = useRevocableUrl();
+  const inputRevision = useRef(0);
+  useEffect(() => {
+    inputRevision.current++;
+    trackResultUrl(null);
+    setResult(null);
+    return () => { inputRevision.current++; };
+  }, [photo, kind, message, files, password, density, trackResultUrl]);
 
   const loadPhoto = useCallback(async (file: File) => {
     soundFx.playClick();
@@ -170,6 +177,7 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
 
   const hide = async () => {
     if (!photo || !canHide) return;
+    const revision = inputRevision.current;
     setBusy(true);
     setError('');
     setStatus(t.simple_hide.button_busy);
@@ -192,6 +200,10 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
         0,
         (_pct, s) => setStatus(s),
       );
+      if (revision !== inputRevision.current) {
+        URL.revokeObjectURL(url);
+        throw new Error('Your inputs changed during processing. Conceal again to export the updated payload.');
+      }
       trackResultUrl(url);
       setResult(url);
       soundFx.playSuccess();
