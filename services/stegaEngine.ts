@@ -375,8 +375,6 @@ function imageCanvas(width: number, height: number): CanvasRenderingContext2D {
   return ctx;
 }
 
-export const MAX_PAYLOAD_FILE_SIZE = 30 * 1024 * 1024; // 30 MB per payload file
-export const MAX_TOTAL_PAYLOAD_SIZE = 50 * 1024 * 1024; // 50 MB total archive
 
 /** Helper to read any File (PNG, JPG, WebP, BMP, ZIP) into image source & dimensions */
 export async function readImageFile(file: File): Promise<{ src: string; w: number; h: number }> {

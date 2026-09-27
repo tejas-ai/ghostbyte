@@ -614,7 +614,7 @@ export const getVideos = (lang: Language): LocalizedVideo[] => {
           difficulty: "Advanced",
           steps: [
             "Step 1: Drop executable binaries (.exe, .dll, or .iso) into the multi-file vault.",
-            "Step 2: Ensure the total payload does not exceed the 50 MB total archive safety limit.",
+            "Step 2: Choose a capacity setting that fits your payload, including encryption and archive overhead. Higher capacity can visibly change the carrier.",
             "Step 3: Set an optional honey-vault decoy password if deniable encryption is required.",
             "Step 4: Execute the spatial concealment and download the stamped PNG carrier.",
             "Step 5: Verify the extracted executable CRC32 checksum matches the original binary.",

@@ -27,6 +27,8 @@ import {
   getScaledDimensions,
   DEFAULT_DENSITY,
   AES_OVERHEAD_BYTES,
+  sanitizeFilename,
+  type CapacityDensity,
 } from '../services/stegaEngine';
 import { useRevocableUrl } from '../hooks/useRevocableUrl';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -54,6 +56,8 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [drag, setDrag] = useState(false);
 
+  const [density, setDensity] = useState<CapacityDensity>(DEFAULT_DENSITY);
+  const [pendingFileReads, setPendingFileReads] = useState(0);
   const [kind, setKind] = useState<'message' | 'files'>('message');
   const [message, setMessage] = useState('');
   const [files, setFiles] = useState<{ name: string; data: Uint8Array }[]>([]);
@@ -112,22 +116,9 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
 
   const addFiles = (list: FileList) => {
     soundFx.playClick();
-    const MAX_FILE_SIZE = 30 * 1024 * 1024;
-    const MAX_TOTAL = 50 * 1024 * 1024;
-    let currentTotal = files.reduce((acc, f) => acc + f.data.length, 0);
-
+    setError('');
     Array.from(list).forEach((f) => {
-      if (f.size > MAX_FILE_SIZE) {
-        setError(`File "${f.name}" (${(f.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 30 MB per-file limit.`);
-        soundFx.playError();
-        return;
-      }
-      if (currentTotal + f.size > MAX_TOTAL) {
-        setError('Total secret files size would exceed the 50 MB archive limit.');
-        soundFx.playError();
-        return;
-      }
-      currentTotal += f.size;
+      setPendingFileReads((n) => n + 1);
       const reader = new FileReader();
       reader.onload = (ev) => {
         setFiles((prev) => [...prev, { name: f.name, data: new Uint8Array(ev.target!.result as ArrayBuffer) }]);
@@ -136,6 +127,7 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
         setError(`Failed to read file "${f.name}". Please re-select the file.`);
         soundFx.playError();
       };
+      reader.onloadend = () => setPendingFileReads((n) => n - 1);
       reader.readAsArrayBuffer(f);
     });
   };
@@ -144,18 +136,18 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
     const te = new TextEncoder();
     let framed = 0;
     if (kind === 'message') framed = te.encode(message).length;
-    else if (files.length === 1) framed = 18 + te.encode(files[0].name).length + files[0].data.length;
-    else if (files.length > 1) framed = files.reduce((s, f) => s + 8 + te.encode(f.name).length + f.data.length, 15);
+    else if (files.length === 1) framed = 18 + te.encode(sanitizeFilename(files[0].name)).length + files[0].data.length;
+    else if (files.length > 1) framed = files.reduce((s, f) => s + 8 + te.encode(sanitizeFilename(f.name)).length + f.data.length, 15);
     return framed > 0 ? framed + (password.trim() ? AES_OVERHEAD_BYTES : 0) : 0;
   }, [kind, message, files, password]);
 
-  const capacity = photo ? calculateCapacity(photo.w, photo.h, DEFAULT_DENSITY) : 0;
+  const capacity = photo ? calculateCapacity(photo.w, photo.h, density) : 0;
   const overCapacity = capacity > 0 && secretBytes > capacity;
 
   const hasSecret = kind === 'message' ? message.trim().length > 0 : files.length > 0;
   const passwordBits = Math.round(calcEntropy(password));
   const passwordReady = password.trim().length > 0 || acknowledgedNoPassword;
-  const canHide = !!photo && hasSecret && passwordReady && !overCapacity && !busy;
+  const canHide = !!photo && hasSecret && passwordReady && !overCapacity && !busy && pendingFileReads === 0;
 
   const generate = () => {
     soundFx.playSparkle();
@@ -196,7 +188,7 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
         photo.src,
         payload,
         password.trim() || undefined,
-        DEFAULT_DENSITY,
+        density,
         0,
         (_pct, s) => setStatus(s),
       );
@@ -294,6 +286,28 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
                 <X size={16} />
               </button>
             </div>
+
+            <fieldset className="card-inset p-3" disabled={busy}>
+              <legend className="px-1 text-xs font-bold text-white">Payload capacity</legend>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {([
+                  ['lsb1', 'Maximum quality'],
+                  ['lsb2', 'Balanced'],
+                  ['lsb4', 'High capacity'],
+                  ['lsb6', 'Maximum capacity'],
+                ] as const).map(([value, label]) => (
+                  <label key={value} className={`cursor-pointer rounded-lg border p-2 text-xs ${density === value ? 'border-[#52b788] bg-[#163329] text-white' : 'border-white/10 text-[#a0aec0]'}`}>
+                    <input type="radio" name="simple-density" value={value} checked={density === value}
+                      onChange={() => { setDensity(value); trackResultUrl(null); setResult(null); }}
+                      className="mr-1 accent-[#52b788]" />
+                    {label}
+                    <span className="mt-1 block font-mono">{fmtBytes(calculateCapacity(photo.w, photo.h, value))}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-[#a0aec0]">Room is based on pixel count and the selected setting, not the image's file size. Original resolution is preserved.</p>
+              {(density === 'lsb4' || density === 'lsb6') && <p className="mt-2 text-xs text-[#e0a96d]">Higher capacity changes more color bits. Maximum capacity can visibly alter the image.</p>}
+            </fieldset>
 
             <div className="card-inset flex items-start gap-2.5 p-3 text-[11px] leading-relaxed text-[#a0aec0]">
               <AlertTriangle size={14} className="mt-0.5 shrink-0 text-[#e0a96d]" />
@@ -447,6 +461,8 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
           </div>
         )}
 
+        {pendingFileReads > 0 && <p role="status" className="mt-2 text-xs text-[#a0aec0]">Reading {pendingFileReads} payload file(s)…</p>}
+
         {photo && hasSecret && (
           <div className="mt-3.5">
             <PayloadFootprint
@@ -454,7 +470,7 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
               width={getScaledDimensions(photo.w, photo.h, 0).w}
               height={getScaledDimensions(photo.w, photo.h, 0).h}
               payloadBytes={secretBytes}
-              density={DEFAULT_DENSITY}
+              density={density}
             />
           </div>
         )}
@@ -463,7 +479,7 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
           <div className="mt-3 flex items-start gap-2 rounded-xl border border-black/60 border-t-red-400/30 bg-[#2d1616] p-3 text-[12px] leading-relaxed text-[#fca5a5] shadow-[var(--shadow-raised-sm)] animate-shake" role="alert">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-[#e57373]" />
             <span>
-              Payload size (<strong>{fmtBytes(secretBytes)}</strong>) exceeds carrier room (<strong>{fmtBytes(capacity)}</strong>). Select a larger photo or{' '}
+              Payload size (<strong>{fmtBytes(secretBytes)}</strong>) exceeds carrier room (<strong>{fmtBytes(capacity)}</strong>). Choose a higher capacity setting above, select a larger photo, or{' '}
               <button
                 type="button"
                 onClick={() => onSwitchToPro?.({
@@ -473,12 +489,13 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
                   files,
                   password,
                   acknowledgedNoPassword,
+                  density,
                 })}
                 className="font-bold underline underline-offset-2 text-[#64b5f6] hover:text-white cursor-pointer"
               >
                 open Pro Workbench
               </button>{' '}
-              for higher density.
+              for more options.
             </span>
           </div>
         )}
@@ -641,7 +658,7 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
             <div>
               <h2 className="display-sm text-[#f7fafc]">{t.simple_hide.export_ready_title}</h2>
               <p className="text-xs text-[#a0aec0]">
-                {t.simple_hide.export_ready_desc}
+                {density === 'lsb4' || density === 'lsb6' ? 'Saved at original resolution. Higher capacity may change image appearance.' : t.simple_hide.export_ready_desc}
               </p>
             </div>
           </header>

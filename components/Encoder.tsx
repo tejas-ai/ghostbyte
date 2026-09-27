@@ -40,6 +40,7 @@ import {
   PASSPHRASE_BITS,
   AES_OVERHEAD_BYTES,
   encryptPayload,
+  sanitizeFilename,
   type CapacityDensity,
 } from '../services/stegaEngine';
 import { encodeWavAudio, parseWavHeader, calculateAudioCapacity } from '../services/audioStegaEngine';
@@ -101,7 +102,7 @@ const DENSITY_CHOICES: { id: CapacityDensity; label: string; psnr: string; note:
     id: 'lsb2',
     label: 'Balanced',
     psnr: '~44 dB',
-    note: 'Two bits per channel. Recommended default with 4x capacity of stealth mode.',
+    note: 'Two bits per channel. Recommended default with 2x capacity of maximum stealth mode.',
   },
   {
     id: 'lsb4',
@@ -113,7 +114,7 @@ const DENSITY_CHOICES: { id: CapacityDensity; label: string; psnr: string; note:
     id: 'lsb6',
     label: 'Maximum capacity',
     psnr: '~20 dB',
-    note: 'Six bits per channel. High capacity mode when maximum data storage is required.',
+    note: 'Six bits per channel. Maximum room, with potentially visible color changes.',
   },
 ];
 
@@ -163,6 +164,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
   const [mode, setMode] = useState<'text' | 'files'>('text');
   const [text, setText] = useState('');
   const [files, setFiles] = useState<{ name: string; data: Uint8Array }[]>([]);
+  const [pendingFileReads, setPendingFileReads] = useState(0);
   const [filesDrag, setFilesDrag] = useState(false);
 
   const [secMode, setSecMode] = useState<'passphrase' | 'asymmetric'>('passphrase');
@@ -221,6 +223,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
     setAudioCarrier(null);
     setMode(initialDraft.kind === 'message' ? 'text' : 'files');
     setText(initialDraft.message);
+    setDensity(initialDraft.density ?? DEFAULT_DENSITY);
     setFiles(initialDraft.files);
     setSecMode('passphrase');
     setDualVault(false);
@@ -380,22 +383,9 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
 
   const loadSecretFiles = (fl: FileList) => {
     soundFx.playClick();
-    const MAX_FILE_SIZE = 30 * 1024 * 1024;
-    const MAX_TOTAL = 50 * 1024 * 1024;
-    let currentTotal = files.reduce((acc, f) => acc + f.data.length, 0);
-
+    setError('');
     Array.from(fl).forEach((f) => {
-      if (f.size > MAX_FILE_SIZE) {
-        setError(`File "${f.name}" (${(f.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 30 MB per-file limit.`);
-        soundFx.playError();
-        return;
-      }
-      if (currentTotal + f.size > MAX_TOTAL) {
-        setError('Total secret files size would exceed the 50 MB archive limit.');
-        soundFx.playError();
-        return;
-      }
-      currentTotal += f.size;
+      setPendingFileReads((n) => n + 1);
       const reader = new FileReader();
       reader.onload = (ev) => {
         const data = new Uint8Array(ev.target!.result as ArrayBuffer);
@@ -405,6 +395,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
         setError(`Failed to read file "${f.name}". Please re-select the file.`);
         soundFx.playError();
       };
+      reader.onloadend = () => setPendingFileReads((n) => n - 1);
       reader.readAsArrayBuffer(f);
     });
   };
@@ -423,9 +414,9 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
   const rawSecretBytes = useMemo(() => {
     const te = new TextEncoder();
     if (mode === 'text') return te.encode(text).length;
-    if (files.length === 1) return 18 + te.encode(files[0].name).length + files[0].data.length;
+    if (files.length === 1) return 18 + te.encode(sanitizeFilename(files[0].name)).length + files[0].data.length;
     if (files.length > 1) {
-      return files.reduce((s, f) => s + 8 + te.encode(f.name).length + f.data.length, 15);
+      return files.reduce((s, f) => s + 8 + te.encode(sanitizeFilename(f.name)).length + f.data.length, 15);
     }
     return 0;
   }, [mode, text, files]);
@@ -459,6 +450,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
   const usedPct = currentCap > 0 ? Math.min(100, (largestPayload / currentCap) * 100) : 0;
 
   const encode = async () => {
+    if (pendingFileReads > 0) return;
     if (carrierType === 'image' && !carrier) {
       setError('Please select a cover photo.');
       return;
@@ -1235,7 +1227,8 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
         <button
           type="button"
           onClick={encode}
-          disabled={loading}
+          aria-label={pendingFileReads > 0 ? `Reading ${pendingFileReads} payload file(s)` : undefined}
+          disabled={loading || pendingFileReads > 0}
           className="btn-primary w-full !py-3.5 !text-base cursor-pointer"
         >
           {loading ? (

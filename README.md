@@ -19,7 +19,9 @@ Share the output as a **file/document or ZIP**, not a compressed chat photo. Ima
 
 The app supports offline use after its first successful online load and cache installation. Browser storage clearing or eviction requires another online visit.
 
-Carrier images have **no app-defined upload size or resolution limit** in Hide, Reveal, or Inspect. Images stay at their original resolution. The practical maximum depends on your browser's decoder, canvas support, and available device memory; very large images may require a more capable device. Limits on embedded secret-file archives and WAV audio are separate.
+Carrier images have **no app-defined upload size or resolution limit** in Hide, Reveal, or Inspect. Images stay at their original resolution. The practical maximum depends on your browser's decoder, canvas support, and available device memory; very large images may require a more capable device. WAV audio limits are separate. Secret files have no fixed 30 MB per-file or 50 MB total cap; they must fit the selected carrier capacity, including encryption and archive overhead. Archives support up to 500 files.
+
+Simple mode offers Maximum quality, Balanced, High capacity, and Maximum capacity. Capacity depends on decoded pixels and embedding density, not compressed file size. For a 10417 × 6668 image, Balanced holds about **49.68 MiB**, while Maximum capacity holds about **149.05 MiB** before encryption and file framing overhead. Higher capacity can visibly change colors.
 
 ## Working screenshots
 

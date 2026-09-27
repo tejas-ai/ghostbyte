@@ -9,7 +9,7 @@
  * no error and no recovery short of a page reload.
  */
 
-import { embedChunks, bytesToChunks, extractBits, DENSITY_BITS, type CapacityDensity } from './bitCodec';
+import { embedChunks, extractBits, DENSITY_BITS, type CapacityDensity } from './bitCodec';
 
 /** Worker embedding/extraction is CPU-bound; well past this, something is wrong. */
 const WORKER_TIMEOUT_MS = 120_000;
@@ -139,7 +139,7 @@ function fallbackEncode(
   density: CapacityDensity,
 ): Uint8ClampedArray {
   const bits = DENSITY_BITS[density] ?? DENSITY_BITS.lsb2;
-  const required = bytesToChunks(stream, bits).length;
+  const required = Math.ceil(stream.length * 8 / bits);
   const written = embedChunks(px, stream, bits);
   if (written < required) {
     throw new Error(

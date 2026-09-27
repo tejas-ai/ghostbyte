@@ -6,7 +6,7 @@
  * cannot drift apart.
  */
 
-import { embedChunks, bytesToChunks, extractBits, DENSITY_BITS, type CapacityDensity } from './bitCodec';
+import { embedChunks, extractBits, DENSITY_BITS, type CapacityDensity } from './bitCodec';
 
 // Minimal worker-scope typing. The project compiles against the DOM lib, where
 // `self` is a Window and postMessage has no transfer-list overload; pulling in
@@ -39,7 +39,7 @@ self.onmessage = (e: MessageEvent) => {
       const stream = new Uint8Array(streamBytes);
       const bits = DENSITY_BITS[density] ?? DENSITY_BITS.lsb2;
 
-      const required = bytesToChunks(stream, bits).length;
+      const required = Math.ceil(stream.length * 8 / bits);
       const written = embedChunks(px, stream, bits);
       if (written < required) {
         throw new Error(

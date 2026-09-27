@@ -16,6 +16,7 @@ export interface SimpleHideDraft {
   files: GhostFile[];
   password: string;
   acknowledgedNoPassword: boolean;
+  density?: import('./services/bitCodec').CapacityDensity;
 }
 
 export type DecodeResult =
