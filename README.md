@@ -19,6 +19,14 @@ Share the output as a **file/document or ZIP**, not a compressed chat photo. Ima
 
 The app supports offline use after its first successful online load and cache installation. Browser storage clearing or eviction requires another online visit.
 
+## Working screenshots
+
+Captured from the public HTTPS app using the built-in demo. The same exported PNG was reloaded and its message successfully decrypted and integrity-verified.
+
+| Prepare a carrier | Export the encrypted result | Recover the message |
+| --- | --- | --- |
+| ![Carrier studio](docs/launch/01-carrier-studio.png) | ![Encrypted carrier ready to download](docs/launch/02-encrypted-result.png) | ![Authenticated payload recovery](docs/launch/03-verified-reveal.png) |
+
 ## Features
 
 | Workflow | What it provides |

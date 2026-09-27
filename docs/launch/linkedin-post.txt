@@ -1,0 +1,23 @@
+QuietSend v3 is live — my browser-based steganography project under GhostByte.
+
+It combines authenticated encryption with image and WAV audio carriers, so you can conceal a message or file archive and recover it directly in your browser. No account or API key is required, and carrier files and payloads are processed locally.
+
+What you can try:
+• Simple Hide & Reveal for a guided workflow
+• AES-GCM-256 encryption and recipient public-key support
+• Multi-file archives with ZIP export
+• Image comparison tools for PSNR, MSE, and bitplane inspection
+• Offline use after the app has loaded and cached successfully
+
+The most valuable engineering work was in the edge cases: preserving payloads in transparent images, fixing draft transfer between modes, making file downloads reliable, and verifying offline reloads.
+
+Validation for this release: 26 automated tests, 14 browser regression cases, a verified production build, and a successful encrypt → download → decrypt round trip on the live site. The screenshots show that live workflow.
+
+Steganography has limits: LSB changes can be detected, and image recompression can destroy the payload. The README documents these boundaries and explains how to share lossless files.
+
+Try it: https://ghostbyte-seven.vercel.app/
+Source & documentation: https://github.com/tejas-ai/ghostbyte
+
+Built with React, TypeScript, Vite, and the Web Crypto API. Feedback on the workflow, threat model, and implementation is welcome.
+
+#CyberSecurity #WebDevelopment #Cryptography #OpenSource #ReactJS
