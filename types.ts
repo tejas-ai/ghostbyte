@@ -9,6 +9,15 @@ export interface GhostFile {
   size?: number;
 }
 
+export interface SimpleHideDraft {
+  photo: { src: string; name: string; w: number; h: number; size: number } | null;
+  kind: 'message' | 'files';
+  message: string;
+  files: GhostFile[];
+  password: string;
+  acknowledgedNoPassword: boolean;
+}
+
 export type DecodeResult =
   | { type: 'text'; content: string; rawBytes?: Uint8Array }
   | { type: 'file'; name: string; data: Uint8Array }

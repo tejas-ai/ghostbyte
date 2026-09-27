@@ -133,7 +133,7 @@ export default function EnclaveSidebar({ currentTab, onOpenKeyring, onOpenGuide 
           <div className="relative">
             <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border border-black/70 bg-[#52b788] shadow-sm" />
             <p className="font-bold text-white">3. LSB Spatial Multiplexing</p>
-            <p className="text-[11px] text-[#a0aec0]">Worker thread bit injection with alpha protection.</p>
+            <p className="text-[11px] text-[#a0aec0]">Transparency flattened before embedding to preserve hidden data.</p>
           </div>
         </div>
       </div>

@@ -215,7 +215,7 @@ export function extractBits(
   }
 
   const headerBytes = chunksToBytes(headerChunks, 4, bits);
-  const len = (headerBytes[0]) | (headerBytes[1] << 8) | (headerBytes[2] << 16) | (headerBytes[3] << 24) >>> 0;
+  const len = (headerBytes[0] | (headerBytes[1] << 8) | (headerBytes[2] << 16) | (headerBytes[3] << 24)) >>> 0;
   const maxBytes = Math.floor((totalRgbChannels * bits - 32) / 8);
 
   if (len === 0 || len > maxBytes) {

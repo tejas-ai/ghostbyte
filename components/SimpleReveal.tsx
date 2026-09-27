@@ -22,6 +22,7 @@ import {
   readImageFile,
   unpackPayload,
   openContainer,
+  buildZipArchive,
   type DecodeResult,
 } from '../services/stegaEngine';
 import { decodeWavAudio, parseWavHeader } from '../services/audioStegaEngine';
@@ -36,7 +37,7 @@ function fmtBytes(n: number) {
   return `${(n / 1048576).toFixed(2)} MB`;
 }
 
-export default function SimpleReveal() {
+export default function SimpleReveal({ active = true }: { active?: boolean }) {
   const { t } = useLanguage();
   const [src, setSrc] = useState<string | null>(null);
   const [fileName, setFileName] = useState('');
@@ -103,6 +104,7 @@ export default function SimpleReveal() {
   );
 
   useEffect(() => {
+    if (!active) return;
     const onPaste = (e: ClipboardEvent) => {
       const f = e.clipboardData?.files?.[0];
       if (f?.type.startsWith('image/')) {
@@ -112,7 +114,7 @@ export default function SimpleReveal() {
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, [load]);
+  }, [active, load]);
 
   useEffect(() => {
     if (result) {
@@ -492,7 +494,12 @@ export default function SimpleReveal() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => downloadBlob(result.files[0].data, `${result.files.length}-files.zip`)}
+                  onClick={() => {
+                    const archive = buildZipArchive(
+                      result.files.map((file) => ({ filename: file.name, data: file.data }))
+                    );
+                    downloadBlob(archive, `${result.files.length}-files.zip`);
+                  }}
                   className="btn btn-secondary !py-1 !px-2.5 !text-xs cursor-pointer font-bold"
                 >
                   <Download size={12} />

@@ -55,7 +55,7 @@ export default function Navigation({ active, onTab, onOpenKeyring, onOpenGuide }
       {/* Top highlight chamfer */}
       <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+      <div className="mx-auto flex min-h-14 w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-3 py-2 sm:h-14 sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-0">
         {/* Brand: Physical Milled Badge */}
         <div className="flex shrink-0 items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/60 border-t-white/20 bg-gradient-to-b from-[#252c3b] to-[#171c26] shadow-[0_2px_5px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15)]">
@@ -71,7 +71,7 @@ export default function Navigation({ active, onTab, onOpenKeyring, onOpenGuide }
                 3.0
               </span>
             </div>
-            <div className="eyebrow mt-0.5 text-[9px] text-[#718096]">
+            <div className="eyebrow mt-0.5 hidden text-[9px] text-[#718096] sm:block">
               {isPro ? 'Pro Telemetry Deck' : 'Air-Gapped Privacy'}
             </div>
           </div>
@@ -95,11 +95,11 @@ export default function Navigation({ active, onTab, onOpenKeyring, onOpenGuide }
               : String(active)
           }
           onChange={(val) => select(val as TabId)}
-          className="min-w-[280px] sm:min-w-[340px]"
+          className="order-3 w-full min-w-0 sm:order-none sm:min-w-[340px] sm:w-auto"
         />
 
         {/* Right Cluster: Mechanical Audio Button, Modals & Rocker Switch */}
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {/* Physical Audio Toggle */}
           <button
             type="button"
@@ -115,7 +115,7 @@ export default function Navigation({ active, onTab, onOpenKeyring, onOpenGuide }
             <button
               type="button"
               onClick={() => { soundFx.playClick(); onOpenKeyring(); }}
-              className="btn btn-secondary !h-8 !px-2.5 !py-0 !text-xs cursor-pointer"
+              className="btn btn-secondary !hidden !h-8 !px-2.5 !py-0 !text-xs cursor-pointer sm:!inline-flex"
               title="ECDH Keyring"
             >
               <Key size={13} />
@@ -127,7 +127,7 @@ export default function Navigation({ active, onTab, onOpenKeyring, onOpenGuide }
             <button
               type="button"
               onClick={() => { soundFx.playClick(); onOpenGuide(); }}
-              className="btn btn-secondary !h-8 !px-2.5 !py-0 !text-xs cursor-pointer"
+              className="btn btn-secondary !hidden !h-8 !px-2.5 !py-0 !text-xs cursor-pointer sm:!inline-flex"
               title="Dispatch instructions"
             >
               <Share2 size={13} />

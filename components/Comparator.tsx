@@ -273,6 +273,8 @@ export default function Comparator() {
   const [bitPlane, setBitPlane] = useState<number | null>(0);
   const [bitPlaneUrl, setBitPlaneUrl] = useState<string | null>(null);
   const [bitLoading, setBitLoading] = useState(false);
+  const analysisRevision = useRef(0);
+  const bitRevision = useRef(0);
 
   const trackOrigUrl = useRevocableUrl();
   const trackModUrl = useRevocableUrl();
@@ -280,8 +282,24 @@ export default function Comparator() {
   const trackHeatmapUrl = useRevocableUrl();
   const trackBitPlaneUrl = useRevocableUrl();
 
+  const clearAnalysis = () => {
+    analysisRevision.current++;
+    bitRevision.current++;
+    setLoading(false);
+    setBitLoading(false);
+    trackDiffUrl(null);
+    trackHeatmapUrl(null);
+    trackBitPlaneUrl(null);
+    setStats(null);
+    setBitPlaneUrl(null);
+    setBitPlane(null);
+    setError('');
+  };
+
   const analyze = async () => {
     if (!orig || !mod) return;
+    const revision = ++analysisRevision.current;
+    const planeRevision = ++bitRevision.current;
     soundFx.playScan();
     setLoading(true);
     setError('');
@@ -290,36 +308,51 @@ export default function Comparator() {
 
     try {
       const res = await compareImages(orig.src, mod.src);
+      if (revision !== analysisRevision.current) {
+        URL.revokeObjectURL(res.diffUrl);
+        URL.revokeObjectURL(res.heatmapUrl);
+        return;
+      }
       trackDiffUrl(res.diffUrl);
       trackHeatmapUrl(res.heatmapUrl);
       setStats(res);
       soundFx.playSuccess();
 
       const bp = await getBitPlane(mod.src, 0);
+      if (revision !== analysisRevision.current || planeRevision !== bitRevision.current) {
+        URL.revokeObjectURL(bp);
+        return;
+      }
       trackBitPlaneUrl(bp);
       setBitPlaneUrl(bp);
       setBitPlane(0);
     } catch (e: unknown) {
+      if (revision !== analysisRevision.current) return;
       setError(e instanceof Error ? e.message : 'Comparison failed.');
       soundFx.playError();
     } finally {
-      setLoading(false);
+      if (revision === analysisRevision.current) setLoading(false);
     }
   };
 
   const selectBitPlane = async (bit: number) => {
     if (!mod) return;
+    const revision = ++bitRevision.current;
     soundFx.playClick();
     setBitLoading(true);
     setBitPlane(bit);
     try {
       const bp = await getBitPlane(mod.src, bit);
+      if (revision !== bitRevision.current) {
+        URL.revokeObjectURL(bp);
+        return;
+      }
       trackBitPlaneUrl(bp);
       setBitPlaneUrl(bp);
     } catch {
-      setError('Failed to extract bitplane.');
+      if (revision === bitRevision.current) setError('Failed to extract bitplane.');
     } finally {
-      setBitLoading(false);
+      if (revision === bitRevision.current) setBitLoading(false);
     }
   };
 
@@ -346,10 +379,12 @@ export default function Comparator() {
             label="Original Cover Image"
             slot={orig}
             onLoad={(file, src, name) => {
+              clearAnalysis();
               trackOrigUrl(src);
               setOrig({ file, src, name });
             }}
             onClear={() => {
+              clearAnalysis();
               trackOrigUrl(null);
               setOrig(null);
             }}
@@ -360,10 +395,12 @@ export default function Comparator() {
             label="Steganographic Carrier Image"
             slot={mod}
             onLoad={(file, src, name) => {
+              clearAnalysis();
               trackModUrl(src);
               setMod({ file, src, name });
             }}
             onClear={() => {
+              clearAnalysis();
               trackModUrl(null);
               setMod(null);
             }}

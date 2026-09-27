@@ -22,6 +22,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import type { SimpleHideDraft } from '../types';
 import {
   encodeImage,
   encodeHoneyVault,
@@ -138,9 +139,12 @@ interface CarrierAudioInfo {
 interface EncoderProps {
   onOpenGuide?: () => void;
   onOpenKeyring?: () => void;
+  active?: boolean;
+  initialDraft?: SimpleHideDraft | null;
+  onDraftConsumed?: () => void;
 }
 
-export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
+export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, initialDraft, onDraftConsumed }: EncoderProps) {
   const { t } = useLanguage();
 
   const [carrierType, setCarrierType] = useState<'image' | 'audio'>('image');
@@ -198,8 +202,54 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
   }, [result]);
 
   useEffect(() => {
-    setContacts(getStoredContacts());
+    const refreshContacts = () => {
+      const stored = getStoredContacts();
+      setContacts(stored);
+      setSelectedContactId((current) => stored.some((contact) => contact.id === current) ? current : '');
+    };
+    refreshContacts();
+    window.addEventListener('quietsend:keyring-updated', refreshContacts);
+    return () => window.removeEventListener('quietsend:keyring-updated', refreshContacts);
   }, []);
+
+  useEffect(() => {
+    if (!initialDraft) return;
+    let cancelled = false;
+    setCarrierType('image');
+    setCarrier(null);
+    trackCarrierUrl(null);
+    setAudioCarrier(null);
+    setMode(initialDraft.kind === 'message' ? 'text' : 'files');
+    setText(initialDraft.message);
+    setFiles(initialDraft.files);
+    setSecMode('passphrase');
+    setDualVault(false);
+    setPass(initialDraft.password);
+    setConfirmPass(initialDraft.password);
+    trackResultUrl(null);
+    setResult(null);
+    setResultFile(null);
+    setError('');
+    // Own a separate URL: replacing the Simple carrier must not revoke Pro's copy.
+    void (async () => {
+      try {
+        if (initialDraft.photo) {
+          const response = await fetch(initialDraft.photo.src);
+          if (!response.ok) throw new Error('Unable to transfer the selected carrier. Please select it again.');
+          const blob = await response.blob();
+          if (cancelled) return;
+          const src = URL.createObjectURL(blob);
+          trackCarrierUrl(src);
+          setCarrier({ ...initialDraft.photo, src });
+        }
+      } catch (error) {
+        if (!cancelled) setError(error instanceof Error ? error.message : 'Unable to transfer carrier.');
+      } finally {
+        if (!cancelled) onDraftConsumed?.();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [initialDraft, onDraftConsumed, trackCarrierUrl, trackResultUrl]);
 
   const handleGeneratePass = () => {
     soundFx.playSparkle();
@@ -304,6 +354,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
   }, [loadCarrier]);
 
   useEffect(() => {
+    if (!active) return;
     const handlePaste = (e: ClipboardEvent) => {
       if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
         const item = e.clipboardData.files[0];
@@ -316,7 +367,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
     };
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [loadCarrier]);
+  }, [active, loadCarrier]);
 
   const onCarrierDrop = (e: DragEvent) => {
     e.preventDefault();
@@ -500,7 +551,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
         setResultHash(hash);
       } else if (carrier) {
         setResultType('image');
-        const url = dualVault
+        const url = carrierType === 'image' && secMode === 'passphrase' && dualVault
           ? await encodeHoneyVault(
               carrier.src,
               rawPayload,
@@ -645,6 +696,11 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
           value={carrierType}
           onChange={(val) => {
             setCarrierType(val);
+            if (val === 'audio') {
+              setDualVault(false);
+              setDecoyPass('');
+              setDecoyText('');
+            }
             setResult(null);
           }}
         />
@@ -776,6 +832,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
                     <p className="mt-0.5 text-xs text-[#718096] font-mono">
                       Supports PNG, JPG, WebP, BMP, and TIFF (Converted Losslessly)
                     </p>
+                    <p className="mt-1 text-xs text-[#718096]">Transparent areas become white in the saved carrier.</p>
                   </div>
                 </div>
               </div>
@@ -1011,7 +1068,14 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
               { id: 'asymmetric', label: 'Recipient Public Key (ECDH)', icon: <Key size={13} />, activeColor: 'purple' },
             ]}
             value={secMode}
-            onChange={(val) => setSecMode(val)}
+            onChange={(val) => {
+              setSecMode(val);
+              if (val === 'asymmetric') {
+                setDualVault(false);
+                setDecoyPass('');
+                setDecoyText('');
+              }
+            }}
           />
 
           {secMode === 'passphrase' ? (
@@ -1081,16 +1145,18 @@ export default function Encoder({ onOpenGuide, onOpenKeyring }: EncoderProps) {
               ) : null}
 
               {/* Physical Sliding Decoy Vault Switch */}
-              <SkeuoToggle
-                checked={dualVault}
-                onChange={(checked) => setDualVault(checked)}
-                icon={<Shield size={15} />}
-                label="Add a Plausibly Deniable Decoy Vault"
-                description="Hides two distinct payload layers under separate passphrases in the same carrier."
-                badge="Dual-Vault"
-              />
+              {carrierType === 'image' && (
+                <SkeuoToggle
+                  checked={dualVault}
+                  onChange={(checked) => setDualVault(checked)}
+                  icon={<Shield size={15} />}
+                  label="Add a Plausibly Deniable Decoy Vault"
+                  description="Hides two distinct payload layers under separate passphrases in the same carrier."
+                  badge="Dual-Vault"
+                />
+              )}
 
-              {dualVault && (
+              {dualVault && carrierType === 'image' && (
                 <div className="card-inset p-3 space-y-2 animate-fade-in">
                   <p className="text-[11px] text-[#a0aec0]">
                     Decoy passphrase opens the decoy payload under coercion, leaving the primary payload hidden.

@@ -138,7 +138,18 @@ export function sanitizeFilename(rawName: string): string {
     clean = `safe_${clean}`;
   }
 
-  return clean.slice(0, 255) || 'unnamed_file.bin';
+  // Keep both the UI-friendly character limit and the byte limit enforced by
+  // the container parser. Truncate by code point so UTF-8 is never split.
+  clean = Array.from(clean).slice(0, 255).join('');
+  let byteLength = 0;
+  let safePrefix = '';
+  for (const char of clean) {
+    const nextLength = enc.encode(char).length;
+    if (byteLength + nextLength > 512) break;
+    safePrefix += char;
+    byteLength += nextLength;
+  }
+  return safePrefix || 'unnamed_file.bin';
 }
 
 /** Zero-fill memory helper for sensitive typed arrays (heap sanitization) */
@@ -152,64 +163,53 @@ export function zeroFill(buf: Uint8Array | null | undefined): void {
   }
 }
 
-/** Parse TIFF / TIF binary buffer into lightweight canvas preview & full dimensions */
-export function parseTiffToDataUrl(buffer: ArrayBuffer): { dataUrl: string; width: number; height: number } | null {
+/** Decode TIFF pixels without resizing or lossy recompression (LSBs carry data). */
+export function parseTiffToDataUrl(buffer: ArrayBuffer): {
+  dataUrl: string;
+  width: number;
+  height: number;
+  renderedWidth: number;
+  renderedHeight: number;
+} | null {
   try {
     const ifds = UTIF.decode(buffer);
     if (!ifds || ifds.length === 0) return null;
     const ifd = ifds[0];
+    const width = Number(Array.isArray(ifd.t256) ? ifd.t256[0] : undefined);
+    const height = Number(Array.isArray(ifd.t257) ? ifd.t257[0] : undefined);
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0 ||
+        width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION || width * height > MAX_IMAGE_PIXELS) {
+      throw new Error('TIFF dimensions exceed the image safety limit or are invalid.');
+    }
     UTIF.decodeImage(buffer, ifd);
     const rgba = UTIF.toRGBA8(ifd);
 
     const origW = ifd.width;
     const origH = ifd.height;
 
-    // Downscale preview for UI display (max 1920px) using fast direct sub-sampling
-    const maxPreview = 1920;
-    let pw = origW;
-    let ph = origH;
-    if (pw > maxPreview || ph > maxPreview) {
-      const scale = Math.min(maxPreview / pw, maxPreview / ph);
-      pw = Math.round(pw * scale);
-      ph = Math.round(ph * scale);
-    }
+    // This source is used for extraction too; resizing would destroy its payload.
+    const pw = origW;
+    const ph = origH;
 
     const previewCanvas = document.createElement('canvas');
     previewCanvas.width = pw;
     previewCanvas.height = ph;
     const previewCtx = previewCanvas.getContext('2d', { willReadFrequently: true })!;
 
-    if (pw === origW && ph === origH) {
-      const imgData = new ImageData(new Uint8ClampedArray(rgba), origW, origH);
-      previewCtx.putImageData(imgData, 0, 0);
-    } else {
-      const previewData = new Uint8ClampedArray(pw * ph * 4);
-      const stepX = origW / pw;
-      const stepY = origH / ph;
-
-      for (let py = 0; py < ph; py++) {
-        const sy = Math.floor(py * stepY);
-        const srcRow = sy * origW;
-        const dstRow = py * pw;
-        for (let px = 0; px < pw; px++) {
-          const sx = Math.floor(px * stepX);
-          const srcIdx = (srcRow + sx) * 4;
-          const dstIdx = (dstRow + px) * 4;
-          previewData[dstIdx]     = rgba[srcIdx];
-          previewData[dstIdx + 1] = rgba[srcIdx + 1];
-          previewData[dstIdx + 2] = rgba[srcIdx + 2];
-          previewData[dstIdx + 3] = rgba[srcIdx + 3];
-        }
-      }
-      previewCtx.putImageData(new ImageData(previewData, pw, ph), 0, 0);
-    }
+    previewCtx.putImageData(new ImageData(new Uint8ClampedArray(rgba), origW, origH), 0, 0);
 
     return {
-      dataUrl: previewCanvas.toDataURL('image/jpeg', 0.85),
+      // Keep the intermediate carrier lossless. JPEG here destroys pixels
+      // before the LSB encoder ever sees them and makes TIFF capacity claims
+      // disagree with the actual rendered image.
+      dataUrl: previewCanvas.toDataURL('image/png'),
       width: origW,
       height: origH,
+      renderedWidth: pw,
+      renderedHeight: ph,
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('safety limit')) throw error;
     return null;
   }
 }
@@ -233,73 +233,87 @@ export function crc32(data: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-/** Pure JS/TS ZIP Archive Builder (Uncompressed PKZIP format - 100% WhatsApp/OS compatible) */
-export function buildZipArchive(filename: string, fileData: Uint8Array): Uint8Array {
-  const nameBytes = enc.encode(filename);
-  const fileCrc = crc32(fileData);
-  const dataLen = fileData.length;
+export interface ZipEntry {
+  filename: string;
+  data: Uint8Array;
+}
 
-  const localHeaderLen = 30 + nameBytes.length;
-  const localHeader = new Uint8Array(localHeaderLen);
-  const viewLocal = new DataView(localHeader.buffer);
+/** Pure JS/TS ZIP Archive Builder (uncompressed PKZIP, UTF-8 filenames). */
+export function buildZipArchive(filename: string, fileData: Uint8Array): Uint8Array;
+export function buildZipArchive(entries: ZipEntry[]): Uint8Array;
+export function buildZipArchive(filenameOrEntries: string | ZipEntry[], fileData?: Uint8Array): Uint8Array {
+  const entries: ZipEntry[] = typeof filenameOrEntries === 'string'
+    ? [{ filename: filenameOrEntries, data: fileData ?? new Uint8Array(0) }]
+    : filenameOrEntries;
 
-  viewLocal.setUint32(0, 0x04034b50, true);
-  viewLocal.setUint16(4, 20, true);
-  viewLocal.setUint16(6, 0, true);
-  viewLocal.setUint16(8, 0, true);
-  viewLocal.setUint16(10, 0, true);
-  viewLocal.setUint16(12, 0, true);
-  viewLocal.setUint32(14, fileCrc, true);
-  viewLocal.setUint32(18, dataLen, true);
-  viewLocal.setUint32(22, dataLen, true);
-  viewLocal.setUint16(26, nameBytes.length, true);
-  viewLocal.setUint16(28, 0, true);
-  localHeader.set(nameBytes, 30);
+  if (entries.length === 0) throw new Error('Cannot create an empty ZIP archive.');
+  if (entries.length > 0xffff) throw new Error('ZIP archive contains too many files.');
 
-  const cdHeaderLen = 46 + nameBytes.length;
-  const cdHeader = new Uint8Array(cdHeaderLen);
-  const viewCD = new DataView(cdHeader.buffer);
+  const locals: Uint8Array[] = [];
+  const central: Uint8Array[] = [];
+  let offset = 0;
 
-  viewCD.setUint32(0, 0x02014b50, true);
-  viewCD.setUint16(4, 20, true);
-  viewCD.setUint16(6, 20, true);
-  viewCD.setUint16(8, 0, true);
-  viewCD.setUint16(10, 0, true);
-  viewCD.setUint16(12, 0, true);
-  viewCD.setUint16(14, 0, true);
-  viewCD.setUint32(16, fileCrc, true);
-  viewCD.setUint32(20, dataLen, true);
-  viewCD.setUint32(24, dataLen, true);
-  viewCD.setUint16(28, nameBytes.length, true);
-  viewCD.setUint16(30, 0, true);
-  viewCD.setUint16(32, 0, true);
-  viewCD.setUint16(34, 0, true);
-  viewCD.setUint16(36, 0, true);
-  viewCD.setUint32(38, 0x81a40000, true);
-  viewCD.setUint32(42, 0, true);
-  cdHeader.set(nameBytes, 46);
+  for (const entry of entries) {
+    const nameBytes = enc.encode(entry.filename);
+    if (nameBytes.length > 0xffff) throw new Error(`ZIP filename is too long: ${entry.filename}`);
+    const fileCrc = crc32(entry.data);
+    const dataLen = entry.data.length;
 
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const viewLocal = new DataView(localHeader.buffer);
+    viewLocal.setUint32(0, 0x04034b50, true);
+    viewLocal.setUint16(4, 20, true);
+    viewLocal.setUint16(6, 0x800, true); // UTF-8 filename flag
+    viewLocal.setUint16(8, 0, true);
+    viewLocal.setUint16(10, 0, true);
+    viewLocal.setUint16(12, 0, true);
+    viewLocal.setUint32(14, fileCrc, true);
+    viewLocal.setUint32(18, dataLen, true);
+    viewLocal.setUint32(22, dataLen, true);
+    viewLocal.setUint16(26, nameBytes.length, true);
+    viewLocal.setUint16(28, 0, true);
+    localHeader.set(nameBytes, 30);
+
+    const cdHeader = new Uint8Array(46 + nameBytes.length);
+    const viewCD = new DataView(cdHeader.buffer);
+    viewCD.setUint32(0, 0x02014b50, true);
+    viewCD.setUint16(4, 20, true);
+    viewCD.setUint16(6, 20, true);
+    viewCD.setUint16(8, 0x800, true);
+    viewCD.setUint16(10, 0, true);
+    viewCD.setUint16(12, 0, true);
+    viewCD.setUint16(14, 0, true);
+    viewCD.setUint32(16, fileCrc, true);
+    viewCD.setUint32(20, dataLen, true);
+    viewCD.setUint32(24, dataLen, true);
+    viewCD.setUint16(28, nameBytes.length, true);
+    viewCD.setUint16(30, 0, true);
+    viewCD.setUint16(32, 0, true);
+    viewCD.setUint16(34, 0, true);
+    viewCD.setUint16(36, 0, true);
+    viewCD.setUint32(38, 0x81a40000, true);
+    viewCD.setUint32(42, offset, true);
+    cdHeader.set(nameBytes, 46);
+
+    locals.push(localHeader, entry.data);
+    central.push(cdHeader);
+    offset += localHeader.length + dataLen;
+  }
+
+  const centralSize = central.reduce((sum, part) => sum + part.length, 0);
   const eocd = new Uint8Array(22);
   const viewEOCD = new DataView(eocd.buffer);
-  const offsetCD = localHeaderLen + dataLen;
-
   viewEOCD.setUint32(0, 0x06054b50, true);
-  viewEOCD.setUint16(4, 0, true);
-  viewEOCD.setUint16(6, 0, true);
-  viewEOCD.setUint16(8, 1, true);
-  viewEOCD.setUint16(10, 1, true);
-  viewEOCD.setUint32(12, cdHeaderLen, true);
-  viewEOCD.setUint32(16, offsetCD, true);
-  viewEOCD.setUint16(20, 0, true);
+  viewEOCD.setUint16(8, entries.length, true);
+  viewEOCD.setUint16(10, entries.length, true);
+  viewEOCD.setUint32(12, centralSize, true);
+  viewEOCD.setUint32(16, offset, true);
 
-  const totalLen = localHeaderLen + dataLen + cdHeaderLen + 22;
-  const out = new Uint8Array(totalLen);
-  let off = 0;
-  out.set(localHeader, off); off += localHeaderLen;
-  out.set(fileData, off); off += dataLen;
-  out.set(cdHeader, off); off += cdHeaderLen;
-  out.set(eocd, off);
-
+  const out = new Uint8Array(offset + centralSize + eocd.length);
+  let outOffset = 0;
+  for (const part of locals) { out.set(part, outOffset); outOffset += part.length; }
+  for (const part of central) { out.set(part, outOffset); outOffset += part.length; }
+  out.set(eocd, outOffset);
   return out;
 }
 
@@ -411,7 +425,7 @@ export async function readImageFile(file: File): Promise<{ src: string; w: numbe
         if (tiff.width > MAX_IMAGE_DIMENSION || tiff.height > MAX_IMAGE_DIMENSION || tiff.width * tiff.height > MAX_IMAGE_PIXELS) {
           throw new Error(`Image resolution (${tiff.width}x${tiff.height}) exceeds the ${isMobile ? 'mobile limit of 4096x4096 (16.7 MP)' : 'safety limit of 8192x8192 (67 MP)'}.`);
         }
-        return { src: tiff.dataUrl, w: tiff.width, h: tiff.height };
+        return { src: tiff.dataUrl, w: tiff.renderedWidth, h: tiff.renderedHeight };
       }
     } catch (err) {
       if (err instanceof Error && err.message.includes('limit')) throw err;
@@ -441,7 +455,7 @@ export async function readImageFile(file: File): Promise<{ src: string; w: numbe
           if (tiff.width > MAX_IMAGE_DIMENSION || tiff.height > MAX_IMAGE_DIMENSION || tiff.width * tiff.height > MAX_IMAGE_PIXELS) {
             return reject(new Error(`Image resolution (${tiff.width}x${tiff.height}) exceeds the ${isMobile ? 'mobile limit of 4096x4096 (16.7 MP)' : 'safety limit of 8192x8192 (67 MP)'}.`));
           }
-          return resolve({ src: tiff.dataUrl, w: tiff.width, h: tiff.height });
+          return resolve({ src: tiff.dataUrl, w: tiff.renderedWidth, h: tiff.renderedHeight });
         }
       } catch (err) {
         if (err instanceof Error && err.message.includes('safety limit')) return reject(err);
@@ -730,8 +744,8 @@ function loadCanvasImg(src: string, maxDim?: number): Promise<{ ctx: CanvasRende
         if (tiff) {
           const tiffImg = new Image();
           tiffImg.onload = () => {
-            let w = tiff.width;
-            let h = tiff.height;
+            let w = tiff.renderedWidth;
+            let h = tiff.renderedHeight;
             if (maxDim && (w > maxDim || h > maxDim)) {
               const ratio = Math.min(maxDim / w, maxDim / h);
               w = Math.round(w * ratio);
@@ -803,6 +817,9 @@ export async function getCarrierCapacity(file: File | string, density: CapacityD
 
 // ── GhostVault multi-file framing (with Filename Sanitization) ────────────────
 export function buildGhostVault(files: { name: string; data: Uint8Array }[]): Uint8Array {
+  if (files.length === 0 || files.length > 500) {
+    throw new Error('A GhostVault must contain between 1 and 500 files. Split larger collections into multiple carriers.');
+  }
   const parts: Uint8Array[] = [GHOST_VAULT_SIG, u32LE(files.length)];
   for (const f of files) {
     const safeName = sanitizeFilename(f.name);
@@ -870,6 +887,16 @@ export async function encodeImage(
 
     const imgData = ctx.getImageData(0, 0, w, h);
     const px = imgData.data;
+    // Canvas stores premultiplied color. Non-opaque pixels lose low RGB bits
+    // during PNG export/import, so composite on white before embedding.
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] === 255) continue;
+      const alpha = px[i + 3] / 255;
+      for (let channel = 0; channel < 3; channel++) {
+        px[i + channel] = Math.round(px[i + channel] * alpha + 255 * (1 - alpha));
+      }
+      px[i + 3] = 255;
+    }
     await yieldMainThread();
 
     onProgress?.(60, 'Embedding bitstream into RGB channels...');
@@ -1260,7 +1287,10 @@ export function unpackPayload(data: Uint8Array): DecodeResult {
     const rawFileCount = readU32LE(data, 11);
     // Security bounds: Ensure fileCount cannot exceed remaining byte capacity or 500 items
     const maxPossibleFiles = Math.floor((data.length - 15) / 8);
-    const fileCount = Math.min(rawFileCount, maxPossibleFiles, 500);
+    if (rawFileCount === 0 || rawFileCount > maxPossibleFiles || rawFileCount > 500) {
+      return { type: 'binary', data };
+    }
+    const fileCount = rawFileCount;
 
     const files: EmbeddedFile[] = [];
     let off = 15;
@@ -1282,9 +1312,8 @@ export function unpackPayload(data: Uint8Array): DecodeResult {
       off += dataLen;
     }
 
-    if (files.length > 0) {
-      return { type: 'vault', files };
-    }
+    if (files.length !== fileCount || off !== data.length) return { type: 'binary', data };
+    return { type: 'vault', files };
   }
 
   // ── Parse GhostFile (Constant-Time Signature Check & Strict Bounds)
@@ -1309,7 +1338,16 @@ export function unpackPayload(data: Uint8Array): DecodeResult {
   // ── UTF-8 text fallback
   try {
     const text = dec.decode(data);
-    if ((text.match(/\uFFFD/g) || []).length < text.length * 0.05 && text.length > 0) {
+    const replacementCount = (text.match(/\uFFFD/g) || []).length;
+    let readableCount = 0;
+    let characterCount = 0;
+    for (const char of text) {
+      characterCount++;
+      const code = char.codePointAt(0)!;
+      if (code === 9 || code === 10 || code === 13 || (code >= 32 && !(code >= 127 && code <= 159))) readableCount++;
+    }
+    const readableRatio = characterCount ? readableCount / characterCount : 0;
+    if (characterCount > 0 && replacementCount < characterCount * 0.05 && readableRatio >= 0.85) {
       return { type: 'text', content: text, rawBytes: data };
     }
   } catch { /* fall through */ }

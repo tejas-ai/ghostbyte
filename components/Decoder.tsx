@@ -75,9 +75,10 @@ function FileChip({ name, data }: { name: string; data: Uint8Array }) {
 
 interface DecoderProps {
   onOpenKeyring?: () => void;
+  active?: boolean;
 }
 
-export default function Decoder({ onOpenKeyring }: DecoderProps) {
+export default function Decoder({ onOpenKeyring, active = true }: DecoderProps) {
   const { t } = useLanguage();
 
   const [carrierKind, setCarrierKind] = useState<'image' | 'audio'>('image');
@@ -97,6 +98,7 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
   const [progress, setProgress] = useState<{ pct: number; status: string } | null>(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState<DecodeResult | null>(null);
+  const [authenticated, setAuthenticated] = useState(false);
   const [carrierHash, setCarrierHash] = useState<string>('');
   const [copiedHash, setCopiedHash] = useState(false);
 
@@ -120,11 +122,22 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
     }
   }, []);
 
+  useEffect(() => {
+    const refreshKeyring = () => {
+      const keys = getStoredKeyring();
+      setKeyring(keys);
+      setSelectedKeyId((current) => keys.some((key) => key.id === current) ? current : (keys[0]?.id ?? ''));
+    };
+    window.addEventListener('quietsend:keyring-updated', refreshKeyring);
+    return () => window.removeEventListener('quietsend:keyring-updated', refreshKeyring);
+  }, []);
+
   const loadStegoFile = useCallback(
     async (file: File) => {
       soundFx.playClick();
       setError('');
       setResult(null);
+      setAuthenticated(false);
 
       const isAudio = file.name.toLowerCase().endsWith('.wav') || file.type.includes('audio');
       if (isAudio && file.size > 100 * 1024 * 1024) {
@@ -168,6 +181,7 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
   );
 
   useEffect(() => {
+    if (!active) return;
     const handlePaste = (e: ClipboardEvent) => {
       if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
         const item = e.clipboardData.files[0];
@@ -179,7 +193,7 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
     };
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [loadStegoFile]);
+  }, [active, loadStegoFile]);
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
@@ -227,15 +241,19 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
     setProgress({ pct: 5, status: 'Initializing bitstream demultiplexer…' });
     setError('');
     setResult(null);
+    setAuthenticated(false);
     soundFx.playScan();
 
     try {
       let secretParam = pass.trim() || undefined;
       if (decryptMethod === 'keyring') {
-        secretParam = undefined;
+        const key = keyring.find((k) => k.id === selectedKeyId) ?? keyring[0];
+        if (!key) throw new Error('Select a private key from Keyring before decrypting this image.');
+        secretParam = key.privateKeyArmor;
       }
 
       let extractedResult: DecodeResult;
+      let wasAuthenticated = false;
 
       if (carrierKind === 'audio' && audioBuffer) {
         setProgress({ pct: 30, status: 'Probing 16-bit PCM WAV bitplanes…' });
@@ -255,10 +273,12 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
           }
           const decryptedPlaintext = await decryptWithPrivateKey(rawPayload, key.privateKeyArmor);
           extractedResult = unpackPayload(decryptedPlaintext);
+          wasAuthenticated = true;
         } else if (secretParam) {
           setProgress({ pct: 70, status: 'Opening AES-GCM-256 authenticated vault…' });
           try {
             extractedResult = await openContainer(rawPayload, secretParam, undefined, controller.signal);
+            wasAuthenticated = true;
           } catch (err) {
             if (controller.signal.aborted) throw err;
             const fallback = unpackPayload(rawPayload);
@@ -277,11 +297,13 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
           (pct, status) => setProgress({ pct, status }),
           controller.signal,
         );
+        wasAuthenticated = Boolean(secretParam);
       } else {
         throw new Error('No carrier media loaded.');
       }
 
       setResult(extractedResult);
+      setAuthenticated(wasAuthenticated);
       soundFx.playSuccess();
     } catch (e: unknown) {
       setError(
@@ -585,9 +607,11 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
                       </span>
                     </h3>
                     <p className="text-[11px] text-[#718096]">
-                      {decryptMethod === 'keyring'
-                        ? 'Decrypted with recipient private key. Does not prove sender identity.'
-                        : 'Payload decrypted and integrity-verified with AES-GCM-256.'}
+                      {authenticated
+                        ? decryptMethod === 'keyring'
+                          ? 'Decrypted with recipient private key. Does not prove sender identity.'
+                          : 'Payload decrypted and integrity-verified with AES-GCM-256.'
+                        : 'Payload extracted without encryption or authentication.'}
                     </p>
                   </div>
                 </div>
@@ -603,6 +627,7 @@ export default function Decoder({ onOpenKeyring }: DecoderProps) {
                     onClick={() => {
                       soundFx.playClick();
                       setResult(null);
+                      setAuthenticated(false);
                     }}
                     className="btn btn-ghost !p-1 text-[#a0aec0] hover:text-[#e57373]"
                     aria-label="Close extracted payload"

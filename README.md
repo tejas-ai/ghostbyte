@@ -1,95 +1,89 @@
-# 🛡️ QuietSend — Client-Side Steganography & Forensic Enclave
+# QuietSend by GhostByte
 
-> **Zero-Server-Retention** | **Authenticated Cryptography** | **100% In-Browser Execution**
+**Hide encrypted messages and files inside images or WAV audio — directly in your browser.**
 
-QuietSend is an open-source, client-side cryptographic steganography application that conceals encrypted files and messages inside lossless digital images (PNG, TIFF, WebP, BMP) and uncompressed 16-bit PCM WAV audio tracks.
+[Open QuietSend](https://ghostbyte-seven.vercel.app/) · [Source code](https://github.com/tejas-ai/ghostbyte) · [Meet the developer](https://www.linkedin.com/in/tejashandigol/)
 
-All cryptographic operations execute exclusively on your local device via the standard Web Cryptography API (`crypto.subtle`). No payloads, keys, or photos are ever transmitted to any remote server.
+QuietSend is an open-source steganography application built by **Tejas Handigol**. GhostByte is the project brand and repository name; QuietSend is the application. It combines local file processing, authenticated encryption, and tools that show how embedding changes a carrier.
 
----
+No account or API key is required. Payloads, passphrases, and carrier files are processed locally by the application. The website host still serves the app's code and static assets.
 
-## 🎯 Threat Model & Explicit Cryptographic Boundaries
+## Try it
 
-### What QuietSend Protects Against
-* **Transport & Storage Intermediaries**: Chat applications, email filters, cloud drives, and network inspection tools that inspect payloads or detect plain ciphertext signatures.
-* **Brute-Force & Collision Attacks**: Authenticated AES-GCM-256 encryption with 600,000 PBKDF2 iterations (OWASP recommendations) prevents false-positive decryptions and provides tag authentication.
-* **Passive Visual & Auditory Inspection**: Conceals payloads in spatial pixel LSBs ($PSNR > 42\text{ dB}$) and acoustic audio bitplanes ($SNR > 50\text{ dB}$), imperceptible to human senses.
-* **Duress & Coercion**: Optional Deniable Honey-Vault provides dual-passphrase decryption revealing a benign decoy payload.
+1. Open **[ghostbyte-seven.vercel.app](https://ghostbyte-seven.vercel.app/)**.
+2. Choose a cover photo and enter a message or select files.
+3. Set a passphrase, conceal the payload, and download the lossless carrier.
+4. Open **Reveal**, select the saved carrier, and enter the same passphrase.
 
-### Structural Limits (What Web-Delivered Steganography Cannot Do)
-* **Origin/Delivery Trust Boundary**: Web-delivered cryptography protects data from the carrier to the browser. It cannot protect against an adversary who compromises the hosting server/DNS to serve altered client scripts. For high-threat environments, verify reproducible build hashes (`npm run verify`) or clone and run locally.
-* **Sender Authentication**: Asymmetric ECDH envelopes encrypt data to the recipient's public key and verify ciphertext integrity, but do **not** provide digital signatures. Anyone holding the recipient's public key can construct an envelope.
-* **Lossy Compression**: JPEG re-encoding, WebP lossy compression, and chat apps that transcode media destroy LSB bitstreams. Carriers must be transported as uncompressed/raw documents.
-* **Active Forensic Steganalysis**: QuietSend hides your message from anyone casually looking — a messaging platform, an automated backup scan, or someone scrolling through your gallery. It does **not** hide it from someone who suspects a file contains something and runs statistical steganalysis on it. Established techniques (such as RS Analysis and Sample Pair Analysis) detect LSB embedding at any density, including the default. If you are in a situation where being found to be hiding something is itself dangerous, this tool is not sufficient protection.
+Share the output as a **file/document or ZIP**, not a compressed chat photo. Image recompression destroys hidden data. Transparent areas are flattened onto white before embedding to keep the saved payload recoverable.
 
----
+The app supports offline use after its first successful online load and cache installation. Browser storage clearing or eviction requires another online visit.
 
-## 🌟 Key Features
+## Features
 
-* **🔑 Asymmetric ECDH P-256 Keyring**: Encrypt directly to a recipient's public key without sharing secret passphrases out-of-band.
-* **🎵 16-bit PCM WAV Audio Steganography**: Embed encrypted bitstreams into acoustic audio samples.
-* **🔒 Authenticated AES-GCM-256 Encryption**: Hardened with 600,000 PBKDF2 iterations.
-* **⚡ Dedicated Web Worker Multiplexer**: Background thread execution keeps UI rendering at 60 FPS during encoding/decoding.
-* **📱 Adaptive Mobile Safari & iPadOS Support**: Canvas memory bounds (4096px / 16.7 MP) tuned for iPhone and iPadOS hardware limits.
-* **🛡️ Live CAVP Diagnostic Suite**: Real-time cryptographic vector self-tests and latency benchmarks in the browser.
-* **🍯 Plausible Deniability Honey-Vault**: Duress defense with dual-passphrase decoy extraction.
-* **🔍 Forensic Comparator**: Split comparison slider, MSE, PSNR, difference heatmaps, and 8-level bit-plane slicing.
-* **🌐 Multilingual Support**: English, Hindi, Kannada, Spanish, and French.
+| Workflow | What it provides |
+| --- | --- |
+| Simple Hide & Reveal | A guided workflow for messages and file archives |
+| Pro Workbench | Image density controls, recipient public keys, WAV carriers, and dual vaults |
+| Encryption | AES-GCM-256 with PBKDF2-HMAC-SHA-256 at 600,000 iterations |
+| Recipient keys | ECDH P-256 with HKDF-SHA-256 and a local keyring |
+| File archives | Multiple embedded files and working ZIP export |
+| Visual inspection | Before/after comparison, MSE, PSNR, difference heatmaps, and bit planes |
+| Browser experience | Responsive layouts, five interface languages, background workers, and offline caching |
 
----
+Image imports include PNG, JPG, WebP, BMP, and TIFF; encoded image output is PNG. Audio encoding uses uncompressed 16-bit PCM WAV.
 
-## 🚀 Quick Start (Run Locally)
+## Security boundaries
 
-### Prerequisites
-* [Node.js](https://nodejs.org/) (v18 or newer)
-* npm
+- **Encryption and hiding are different.** Without a passphrase, extracted content is readable. A strong passphrase is required for the symmetric encryption workflow.
+- **LSB steganography is detectable.** It can hide content from casual viewing, but statistical analysis and comparison with an original can reveal changes.
+- **You must trust the delivered code.** A compromised host, browser, extension, or device can undermine browser cryptography. Running reviewed source locally reduces reliance on a live website.
+- **Recipient encryption does not authenticate the sender.** ECDH envelopes do not include digital signatures.
+- **Dual vaults have limits.** A decoy password opens separate content; this does not guarantee deniability against forensic analysis or coercion.
+- **Lossy transformations destroy payloads.** Keep the original lossless output and share it without recompression.
 
-### Installation & Execution
+Read **Settings → Threat Model & Cryptographic Boundaries** before using the app for sensitive information. This is an independently developed project, not a certified or independently audited security product.
+
+## Stack
+
+React 19 · TypeScript · Vite · Tailwind CSS · Web Crypto API · Web Workers · Service Worker · UTIF
+
+## Run locally
+
+Use Node.js **22.12 or newer** and npm.
+
 ```bash
-# 1. Clone repository
-git clone https://github.com/tejasj/quietsend.git
-cd quietsend
-
-# 2. Install dependencies
-npm install
-
-# 3. Run automated cryptographic test suite
-npm test
-
-# 4. Start local development enclave
+git clone https://github.com/tejas-ai/ghostbyte.git
+cd ghostbyte
+npm ci
 npm run dev
 ```
 
-### Reproducible Production Build & Verification
+No Gemini key, backend service, or database is needed. Encryption requires HTTPS or localhost.
+
+## Validate and build
+
 ```bash
-# Build bundle and generate cryptographic checksums
+npm test
+npm run typecheck
 npm run build:verify
+npm run preview
 ```
-This generates `dist/SHA256SUMS` listing cryptographic SHA-256 digests of all deployed client bundles for independent audit verification.
 
----
+The September 2026 functional review passed **26 automated tests** and **14 browser service regression cases**. It also verified a production draft-transfer workflow, mobile layout, and a first offline reload with the preview server stopped.
 
-## 📊 Technical Specifications
+See the [fixes and validation report](review-reports/2026-09-27/FIXES_AND_VALIDATION.md) for scope and limitations. Test success is evidence for those cases, not a guarantee that every browser or input is covered.
 
-| Parameter | Specification |
-| :--- | :--- |
-| **Symmetric Cipher** | AES-GCM-256 (128-bit authentication tag) |
-| **Asymmetric Cipher** | ECDH (NIST Curve P-256) + HKDF-SHA-256 |
-| **Key Derivation** | PBKDF2-HMAC-SHA-256 (600,000 rounds) |
-| **Image Densities** | LSB-1 through LSB-6 (0.375 to 2.25 Bytes/pixel) |
-| **Audio Format** | 16-bit PCM RIFF WAV (44.1kHz / 48kHz) |
-| **Archive Format** | Uncompressed PKZIP with IEEE 802.3 CRC-32 |
-| **Execution** | 100% Client-Side WebCrypto (Zero Server Retention) |
+`build:verify` builds `dist/` and writes per-file SHA-256 hashes to `dist/SHA256SUMS`. It calculates a manifest; independent verification requires comparison with a trusted release manifest. Use a fixed `VITE_BUILD_ID` when comparing builds because the service-worker cache identifier otherwise changes each build.
 
----
+## Deployment
 
-## 📬 Security Disclosures & Contact
+The public app is hosted at **https://ghostbyte-seven.vercel.app/**. The repository includes Vercel and Netlify configuration with security and cache headers. See [DEPLOYMENT.md](DEPLOYMENT.md).
 
-To report security vulnerabilities, cryptographic flaws, or request key verifications:
-* **Security Contact**: `security@quietsend.app`
-* **Repository**: [github.com/tejasj/quietsend](https://github.com/tejasj/quietsend)
+Tutorial video files are excluded from Git. Deployments without them show the written walkthrough fallback. Core Hide, Reveal, and Inspect workflows do not depend on those videos.
 
----
+## Author and license
 
-## 📄 License
-MIT License. Built for journalists, privacy researchers, and security professionals worldwide.
+Built by [Tejas Handigol](https://www.linkedin.com/in/tejashandigol/) · [GitHub](https://github.com/tejas-ai)
+
+[MIT License](LICENSE). Feedback and reproducible bug reports are welcome through [GitHub Issues](https://github.com/tejas-ai/ghostbyte/issues).

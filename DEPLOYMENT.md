@@ -4,14 +4,15 @@ This guide explains how to release QuietSend to the public and how to access it 
 
 ## 📱 Option 1: Instant Local Access (iPhone on same WiFi)
 
-If you just want to test it on your iPhone **right now** and you are on the same WiFi network:
+The browser WebCrypto APIs used by QuietSend require a secure context. A plain
+LAN `http://192.168.x.x` URL will load the UI but cannot run encryption. Use a
+local HTTPS tunnel (for example, a trusted development certificate or an
+HTTPS tunnel service), or use a deployed HTTPS preview instead.
 
 1.  Make sure the app is running on your computer (`npm run dev` or `npm run preview`).
-2.  Look at the terminal output for the **Network** URL.
-    -   Example: `http://192.168.1.5:3000/` or `http://192.168.29.179:3000/`
+2.  Open the HTTPS URL provided by your tunnel or preview host.
 3.  Open Safari or Chrome on your iPhone.
-4.  Type that exact URL number into the address bar.
-    -   *Note: Your computer's firewall must allow connections on port 3000 (Node.js/Vite).*
+4.  Type that exact HTTPS URL into the address bar.
 
 ---
 

@@ -55,6 +55,7 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
 
   const [selectedPost, setSelectedPost] = useState<LocalizedBlogPost | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [videoFailed, setVideoFailed] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -391,6 +392,7 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
               key={`${v.title}-${i}`}
               onClick={() => {
                 soundFx.playClick();
+                setVideoFailed(false);
                 setSelectedVideo(v.src);
               }}
               className="card-inset p-4 hover:bg-[#121620] transition-all cursor-pointer group space-y-2 text-left w-full focus-visible:ring-2 focus-visible:ring-emerald-400"
@@ -430,12 +432,19 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
                   <X size={16} />
                 </button>
               </div>
-              <video
-                src={selectedVideo}
-                controls
-                preload="metadata"
-                className="w-full rounded-xl aspect-video bg-black"
-              />
+              {videoFailed ? (
+                <div className="card-inset flex aspect-video items-center justify-center p-6 text-center text-sm text-[#a0aec0]">
+                  The video file is unavailable in this deployment. Use the written walkthrough below.
+                </div>
+              ) : (
+                <video
+                  src={selectedVideo}
+                  controls
+                  preload="metadata"
+                  onError={() => setVideoFailed(true)}
+                  className="w-full rounded-xl aspect-video bg-black"
+                />
+              )}
               {activeVideoObj && (
                 <div className="card-inset p-3.5 text-xs text-[#a0aec0] space-y-2 max-h-52 overflow-y-auto">
                   <div className="flex items-center justify-between">
@@ -500,10 +509,11 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
           </div>
           <div className="space-y-2.5">
             {blogPosts.map((post) => (
-              <div
+              <button
+                type="button"
                 key={post.id}
                 onClick={() => handleBlogClick(post)}
-                className="card-inset p-4 hover:bg-[#121620] transition-all cursor-pointer space-y-1.5 group"
+                className="card-inset w-full text-left p-4 hover:bg-[#121620] transition-all cursor-pointer space-y-1.5 group"
               >
                 <div className="flex items-center justify-between text-[11px] font-mono text-[#52b788]">
                   <span>{post.date} · {post.readTime}</span>
@@ -513,7 +523,7 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
                   {post.title}
                 </h4>
                 <p className="text-xs text-[#a0aec0] leading-relaxed">{post.summary}</p>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -543,7 +553,7 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
             <p>Share suggestions, bug reports, or security findings with the maintainers.</p>
             <div className="space-y-2 pt-2">
               <a
-                href="https://github.com/tejasj/quietsend/issues/new"
+                href="https://github.com/tejas-ai/ghostbyte/issues/new"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => soundFx.playClick()}

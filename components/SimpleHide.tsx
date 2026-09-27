@@ -31,6 +31,7 @@ import {
 import { useRevocableUrl } from '../hooks/useRevocableUrl';
 import { useLanguage } from '../contexts/LanguageContext';
 import { soundFx } from '../services/soundFx';
+import type { SimpleHideDraft } from '../types';
 import PayloadFootprint from './PayloadFootprint';
 import SkeuoSegmentedControl from './SkeuoSegmentedControl';
 
@@ -48,7 +49,7 @@ interface Photo {
   size: number;
 }
 
-export default function SimpleHide({ onSwitchToPro }: { onSwitchToPro?: () => void }) {
+export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchToPro?: (draft: SimpleHideDraft) => void; active?: boolean }) {
   const { t } = useLanguage();
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [drag, setDrag] = useState(false);
@@ -95,6 +96,7 @@ export default function SimpleHide({ onSwitchToPro }: { onSwitchToPro?: () => vo
   }, [trackPhotoUrl, trackResultUrl, t]);
 
   useEffect(() => {
+    if (!active) return;
     const onPaste = (e: ClipboardEvent) => {
       const f = e.clipboardData?.files?.[0];
       if (f?.type.startsWith('image/')) {
@@ -104,7 +106,7 @@ export default function SimpleHide({ onSwitchToPro }: { onSwitchToPro?: () => vo
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, [loadPhoto]);
+  }, [active, loadPhoto]);
 
   useEffect(() => {
     if (result) {
@@ -338,6 +340,7 @@ export default function SimpleHide({ onSwitchToPro }: { onSwitchToPro?: () => vo
                 <p className="mt-0.5 text-xs text-[#718096] font-mono">
                   {t.simple_hide.dropzone_hint}
                 </p>
+                <p className="mt-1 text-xs text-[#718096]">Transparent areas become white in the saved photo.</p>
               </div>
             </div>
           </div>
@@ -468,7 +471,14 @@ export default function SimpleHide({ onSwitchToPro }: { onSwitchToPro?: () => vo
               Payload size (<strong>{fmtBytes(secretBytes)}</strong>) exceeds carrier room (<strong>{fmtBytes(capacity)}</strong>). Select a larger photo or{' '}
               <button
                 type="button"
-                onClick={onSwitchToPro}
+                onClick={() => onSwitchToPro?.({
+                  photo,
+                  kind,
+                  message,
+                  files,
+                  password,
+                  acknowledgedNoPassword,
+                })}
                 className="font-bold underline underline-offset-2 text-[#64b5f6] hover:text-white cursor-pointer"
               >
                 open Pro Workbench

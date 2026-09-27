@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { ModeProvider, useMode } from './contexts/ModeContext';
 import Navigation from './components/Navigation';
@@ -14,11 +14,14 @@ import MessengerGuideModal from './components/MessengerGuideModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ShieldCheck, Lock } from 'lucide-react';
 import type { TabId } from './types';
+import type { SimpleHideDraft } from './types';
 
 function AppInner() {
   const [tab, setTab] = useState<TabId>('encoder');
   const [keyringOpen, setKeyringOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [simpleDraft, setSimpleDraft] = useState<SimpleHideDraft | null>(null);
+  const consumeSimpleDraft = useCallback(() => setSimpleDraft(null), []);
   const { isPro, setMode } = useMode();
   const { t } = useLanguage();
 
@@ -30,6 +33,10 @@ function AppInner() {
 
   const openKeyring = () => setKeyringOpen(true);
   const openGuide = () => setGuideOpen(true);
+  const switchToProWithDraft = (draft: SimpleHideDraft) => {
+    setSimpleDraft(draft);
+    setMode('pro');
+  };
 
   return (
     <div className="relative flex min-h-screen flex-col bg-[#101319]">
@@ -72,12 +79,23 @@ function AppInner() {
           </div>
         )}
 
-        {isPro ? (
-          /* Pro: Multi-module workbench with live telemetry deck */
+        {/* Keep both workbenches mounted so switching modes never discards a draft. */}
+        <div className={isPro ? 'hidden' : 'block'} aria-hidden={isPro}>
+          <div className="mx-auto max-w-2xl">
+            {tab === 'encoder' && <SimpleHide active={!isPro} onSwitchToPro={switchToProWithDraft} />}
+            {tab === 'decoder' && <SimpleReveal active={!isPro} />}
+            {tab === 'settings' && <Settings onOpenKeyring={openKeyring} onOpenGuide={openGuide} />}
+            {(tab === 'forensics' || tab === 'comparator') && (
+              <SimpleHide active={!isPro} onSwitchToPro={switchToProWithDraft} />
+            )}
+          </div>
+        </div>
+
+        <div className={isPro ? 'block' : 'hidden'} aria-hidden={!isPro}>
           <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-start gap-5 lg:grid-cols-12 animate-fade-in">
             <div className="space-y-5 lg:col-span-8">
-              {tab === 'encoder' && <Encoder onOpenGuide={openGuide} onOpenKeyring={openKeyring} />}
-              {tab === 'decoder' && <Decoder onOpenKeyring={openKeyring} />}
+              {tab === 'encoder' && <Encoder active={isPro} initialDraft={simpleDraft} onDraftConsumed={consumeSimpleDraft} onOpenGuide={openGuide} onOpenKeyring={openKeyring} />}
+              {tab === 'decoder' && <Decoder active={isPro} onOpenKeyring={openKeyring} />}
               {(tab === 'forensics' || tab === 'comparator') && <Comparator />}
               {tab === 'settings' && <Settings onOpenKeyring={openKeyring} onOpenGuide={openGuide} />}
             </div>
@@ -85,17 +103,7 @@ function AppInner() {
               <EnclaveSidebar currentTab={tab} onOpenKeyring={openKeyring} onOpenGuide={openGuide} />
             </aside>
           </div>
-        ) : (
-          /* Simple: Centered focused console */
-          <div className="mx-auto max-w-2xl">
-            {tab === 'encoder' && <SimpleHide onSwitchToPro={() => setMode('pro')} />}
-            {tab === 'decoder' && <SimpleReveal />}
-            {tab === 'settings' && <Settings onOpenKeyring={openKeyring} onOpenGuide={openGuide} />}
-            {(tab === 'forensics' || tab === 'comparator') && (
-              <SimpleHide onSwitchToPro={() => setMode('pro')} />
-            )}
-          </div>
-        )}
+        </div>
       </main>
 
       <KeyringModal isOpen={keyringOpen} onClose={() => setKeyringOpen(false)} />

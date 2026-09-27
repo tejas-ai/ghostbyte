@@ -348,6 +348,7 @@ export function getStoredKeyring(): KeyPairInfo[] {
 export function saveStoredKeyring(keys: KeyPairInfo[]): void {
   try {
     localStorage.setItem(STORAGE_KEY_KEYRING, JSON.stringify(keys));
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('quietsend:keyring-updated'));
   } catch {
     // storage full or blocked
   }
@@ -365,6 +366,7 @@ export function getStoredContacts(): ContactPublicKey[] {
 export function saveStoredContacts(contacts: ContactPublicKey[]): void {
   try {
     localStorage.setItem(STORAGE_KEY_CONTACTS, JSON.stringify(contacts));
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('quietsend:keyring-updated'));
   } catch {
     // storage full or blocked
   }

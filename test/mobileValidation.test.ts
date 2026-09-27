@@ -12,6 +12,9 @@ import {
   MAX_IMAGE_DIMENSION,
   MAX_IMAGE_PIXELS,
   MAX_CARRIER_FILE_SIZE,
+  buildZipArchive,
+  parseZipArchive,
+  sanitizeFilename,
 } from '../services/stegaEngine';
 import {
   generateAsymmetricKeyPair,
@@ -20,6 +23,7 @@ import {
   isAsymmetricPayload,
 } from '../services/asymmetricCrypto';
 import { encodeWavAudio, decodeWavAudio } from '../services/audioStegaEngine';
+import { embedChunks, extractBits } from '../services/bitCodec';
 
 describe('iOS (iPhone & iPad) & Constrained Mobile Device Validation Suite', () => {
   const originalNavigator = globalThis.navigator;
@@ -62,6 +66,46 @@ describe('iOS (iPhone & iPad) & Constrained Mobile Device Validation Suite', () 
   });
 
   describe('2. End-to-End Cryptographic & Steganographic Mobile Workflows', () => {
+    it('rejects random NUL-heavy bitstreams instead of presenting them as plaintext', () => {
+      const randomCarrierBits = new Uint8Array(128);
+      expect(unpackPayload(randomCarrierBits).type).toBe('binary');
+    });
+
+    it('rejects unsigned length headers larger than the carrier without allocating', () => {
+      const pixels = new Uint8ClampedArray(128);
+      embedChunks(pixels, new Uint8Array([0, 0, 0, 128]), 2);
+      expect(extractBits(pixels, 96, 2)).toBeNull();
+    });
+
+    it('preserves messages made entirely of Unicode supplementary characters', () => {
+      const message = '🔐🦊🚀';
+      expect(unpackPayload(new TextEncoder().encode(message))).toMatchObject({ type: 'text', content: message });
+    });
+
+    it('rejects oversized and truncated archives instead of returning partial files', () => {
+      const files = Array.from({ length: 501 }, (_, i) => ({ name: `${i}.txt`, data: new Uint8Array([1]) }));
+      expect(() => buildGhostVault(files)).toThrow('500');
+      const archive = buildGhostVault(files.slice(0, 2));
+      expect(unpackPayload(archive.slice(0, -1)).type).toBe('binary');
+    });
+
+    it('keeps Unicode filenames within the decoder byte bound', () => {
+      const safeName = sanitizeFilename('测'.repeat(180) + '.txt');
+      expect(new TextEncoder().encode(safeName).length).toBeLessThanOrEqual(512);
+      expect(unpackPayload(buildGhostFile(safeName, new Uint8Array([1, 2, 3])).slice()).type).toBe('file');
+    });
+
+    it('builds a valid multi-file ZIP while preserving the existing single-file parser', () => {
+      const first = new TextEncoder().encode('first');
+      const archive = buildZipArchive([
+        { filename: 'first.txt', data: first },
+        { filename: 'second.txt', data: new TextEncoder().encode('second') },
+      ]);
+      expect(new DataView(archive.buffer).getUint32(0, true)).toBe(0x04034b50);
+      expect(new TextDecoder().decode(parseZipArchive(archive)!)).toBe('first');
+      expect(new DataView(archive.buffer).getUint16(archive.length - 14, true)).toBe(2);
+    });
+
     it('encodes and decodes GhostVault multi-file archives on mobile simulated buffers', async () => {
       const te = new TextEncoder();
       const files = [

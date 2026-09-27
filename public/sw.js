@@ -29,20 +29,19 @@ const PRECACHE_URLS = [
 // ── Install: precache the shell ────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .then(() => self.skipWaiting())
   );
-  // Activate immediately; don't wait for existing clients to close.
-  self.skipWaiting();
 });
 
 // ── Activate: evict stale caches ──────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+      Promise.all(keys.filter((k) => k.startsWith('quietsend-v3-') && k !== CACHE_NAME).map((k) => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 // ── Fetch: route by request type ──────────────────────────────────────────────
@@ -52,7 +51,7 @@ self.addEventListener('fetch', (event) => {
   // Only handle same-origin GET requests. Let cross-origin (Google Fonts
   // previously) and non-GET pass through unchanged.
   if (request.method !== 'GET') return;
-  if (!request.url.startsWith(self.location.origin)) return;
+  if (new URL(request.url).origin !== self.location.origin) return;
 
   // Never intercept range requests — the browser uses these for <video>
   // seeking and needs a real 206 from the server, not a 200 from cache.
@@ -63,7 +62,10 @@ self.addEventListener('fetch', (event) => {
   // Hashed assets are content-addressed — cache-first is safe and fast.
   if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/')) {
     event.respondWith(
-      caches.match(request).then((cached) => {
+      // These are same-origin static files. Their bytes do not vary by Origin,
+      // but preview/CDN CORS headers can add Vary: Origin. Match precached
+      // fetches against module-script requests even when their headers differ.
+      caches.open(CACHE_NAME).then((cache) => cache.match(request, { ignoreVary: true })).then((cached) => {
         if (cached) return cached;
         return fetch(request).then((resp) => {
           if (resp && resp.status === 200) {

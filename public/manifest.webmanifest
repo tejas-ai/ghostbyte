@@ -2,7 +2,7 @@
   "id": "/quietsend-app",
   "name": "QuietSend Steganography Enclave",
   "short_name": "QuietSend",
-  "description": "Zero-knowledge client-side encrypted steganography and digital forensics enclave.",
+  "description": "Hide encrypted messages and files inside images and WAV audio, with local browser processing.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

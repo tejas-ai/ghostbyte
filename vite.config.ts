@@ -15,6 +15,18 @@ function stampServiceWorker(buildId: string): Plugin {
       if (fs.existsSync(distSwPath)) {
         let content = fs.readFileSync(distSwPath, 'utf8');
         content = content.replace(/const BUILD_ID = [^;]+;/, `const BUILD_ID = ${JSON.stringify(buildId)};`);
+        const assetsDir = path.resolve(import.meta.dirname, 'dist', 'assets');
+        const assetUrls = fs.existsSync(assetsDir)
+          ? fs.readdirSync(assetsDir)
+              .filter((name) => !name.endsWith('.map'))
+              .sort()
+              .map((name) => `/assets/${name}`)
+          : [];
+        const precache = ['/', '/index.html', '/manifest.webmanifest', ...assetUrls];
+        content = content.replace(
+          /const PRECACHE_URLS = \[[\s\S]*?\];/,
+          `const PRECACHE_URLS = ${JSON.stringify(precache, null, 2)};`,
+        );
         fs.writeFileSync(distSwPath, content, 'utf8');
       }
     },
