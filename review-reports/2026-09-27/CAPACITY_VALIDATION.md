@@ -9,6 +9,6 @@ Date: 2026-09-27
 - `npm test`: 33 tests passed, including exact-capacity round trips for every density and the reported image dimensions.
 - `npm run build:verify`: passed type checking, production build, and artifact manifest verification.
 - Browser regression: loaded a 128.04 MiB BMP at 8193 x 5462, selected a 60 MiB payload, confirmed Balanced rejected it for insufficient room, then selected Maximum capacity (96.02 MiB).
-- Encrypted and exported the payload successfully. The exported PNG retained 8193 x 5462 resolution. Re-importing that PNG and decrypting showed `Payload Successfully Extracted`, the original filename, and 60.00 MB. The application checks the embedded file checksum while parsing.
+- Encrypted and exported the payload successfully. The exported PNG retained 8193 x 5462 resolution. Re-importing that PNG and decrypting showed `Payload Successfully Extracted`, the original filename, and 60.00 MB. Successful AES-GCM decryption verifies the encrypted payload's authentication tag.
 - The in-app browser did not expose/save the recovered binary download during automation, so an independent downloaded-file SHA-256 comparison was not completed. Chrome automation was unavailable because its request-header policy failed to load.
 - Large synthetic fixtures and local screenshots are intentionally excluded from Git.
