@@ -446,7 +446,7 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
                     <div className="flex items-center justify-between pb-3 border-b border-white/10">
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
-                        <h4 className="text-sm font-bold text-white">{activeKey.name}</h4>
+                        <h4 data-no-translate className="text-sm font-bold text-white">{activeKey.name}</h4>
                       </div>
                       <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
                         ACTIVE IDENTITY
@@ -615,7 +615,7 @@ export default function KeyringModal({ isOpen, onClose }: KeyringModalProps) {
                       >
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-white text-xs">{c.name}</span>
+                            <span data-no-translate className="font-bold text-white text-xs">{c.name}</span>
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-purple-500/20 text-purple-300">
                               {c.fingerprint}
                             </span>

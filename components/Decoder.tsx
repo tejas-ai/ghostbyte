@@ -355,7 +355,7 @@ export default function Decoder({ onOpenKeyring, active = true }: DecoderProps) 
                       </div>
                     )}
                     <div className="truncate text-xs font-mono">
-                      <p className="font-bold text-white truncate max-w-xs">{stegoName}</p>
+                      <p data-no-translate className="font-bold text-white truncate max-w-xs">{stegoName}</p>
                       <p className="text-[11px] text-[#64b5f6] font-bold">
                         {carrierKind === 'image' ? 'Image Carrier Loaded' : '16-bit PCM WAV Audio Loaded'}
                       </p>
@@ -614,7 +614,7 @@ export default function Decoder({ onOpenKeyring, active = true }: DecoderProps) 
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-[#a0aec0] font-mono">
-                      Decrypted Message ({result.content.length} characters)
+                      Extracted Message ({result.content.length} characters)
                     </span>
                     <button
                       type="button"
@@ -627,7 +627,7 @@ export default function Decoder({ onOpenKeyring, active = true }: DecoderProps) 
                   </div>
 
                   <div className="card-inset p-4 text-xs sm:text-sm text-white font-mono whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto select-all">
-                    {result.content || <span className="text-[#718096] italic">(Empty message)</span>}
+                    {result.content ? <span data-no-translate>{result.content}</span> : <span className="text-[#718096] italic">(Empty message)</span>}
                   </div>
                 </div>
               )}

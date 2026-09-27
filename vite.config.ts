@@ -80,7 +80,7 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    plugins: [react(), devCspPlugin(isDev), stampServiceWorker(buildId)],
+    plugins: [react({ jsxImportSource: '@/i18n' }), devCspPlugin(isDev), stampServiceWorker(buildId)],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),

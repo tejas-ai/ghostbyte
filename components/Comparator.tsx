@@ -115,7 +115,7 @@ function ImgDropZone({
             </div>
           </div>
           <div className="flex items-center justify-between px-1">
-            <p className="text-xs font-mono font-bold truncate max-w-[180px] text-white">
+            <p data-no-translate className="text-xs font-mono font-bold truncate max-w-[180px] text-white">
               {slot.name}
             </p>
             <button

@@ -767,7 +767,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
                       className="h-14 w-14 shrink-0 rounded-lg object-cover border border-black/60 shadow-md"
                     />
                     <div className="truncate text-xs font-mono space-y-0.5">
-                      <p className="font-bold text-white truncate max-w-xs">{carrier.name}</p>
+                      <p data-no-translate className="font-bold text-white truncate max-w-xs">{carrier.name}</p>
                       <p className="text-[11px] text-[#52b788]">
                         {carrier.w} × {carrier.h} px · {fmtBytes(carrier.size)}
                       </p>
@@ -1019,7 +1019,7 @@ export default function Encoder({ onOpenGuide, onOpenKeyring, active = true, ini
                   key={`${f.name}-${f.data.length}-${i}`}
                   className="card-inset flex items-center justify-between gap-2 p-2.5 text-xs animate-fade-in"
                 >
-                  <span className="truncate font-semibold text-white">{f.name}</span>
+                  <span data-no-translate className="truncate font-semibold text-white">{f.name}</span>
                   <div className="flex items-center gap-2">
                     <span className="mono text-[#64b5f6]">{fmtBytes(f.data.length)}</span>
                     <button

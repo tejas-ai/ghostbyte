@@ -176,7 +176,7 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
                 <span className="font-bold text-white text-sm block group-hover:text-[#52b788] transition-colors">
                   Language & Localization
                 </span>
-                <span className="text-xs font-mono text-[#718096]">Current: {language}</span>
+                <span className="text-xs font-mono text-[#718096]"><span>Current:</span> {LANG_OPTIONS.find((option) => option.code === language)?.native}</span>
               </div>
             </div>
             <ChevronRight className="text-[#718096] group-hover:text-white transition-colors" size={16} />
@@ -275,7 +275,7 @@ export default function Settings({ onOpenKeyring, onOpenGuide }: SettingsProps) 
               language === opt.code ? 'border-emerald-500/50 bg-[#122019]' : 'hover:bg-[#121620]'
             }`}
           >
-            <span className="font-bold text-sm text-white">{opt.label}</span>
+            <span className="font-bold text-sm text-white">{opt.native}</span>
             {language === opt.code && <Check size={16} className="text-[#52b788]" />}
           </button>
         ))}

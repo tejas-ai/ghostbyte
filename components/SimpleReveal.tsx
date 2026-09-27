@@ -246,7 +246,7 @@ export default function SimpleReveal({ active = true }: { active?: boolean }) {
                 />
               )}
               <div className="min-w-0">
-                <p className="truncate text-xs font-bold text-white">{fileName}</p>
+                <p data-no-translate className="truncate text-xs font-bold text-white">{fileName}</p>
                 <p className="text-[11px] text-[#52b788] font-mono">{t.simple_reveal.carrier_ingested}</p>
               </div>
             </div>
@@ -435,7 +435,7 @@ export default function SimpleReveal({ active = true }: { active?: boolean }) {
                 className="card-inset max-h-80 overflow-y-auto p-3.5 text-sm leading-relaxed text-[#e2e8f0] font-mono"
                 style={{ whiteSpace: 'pre-wrap' }}
               >
-                {result.content || <span className="text-[#718096]">(Empty message)</span>}
+                {result.content ? <span data-no-translate>{result.content}</span> : <span className="text-[#718096]">(Empty message)</span>}
               </div>
               <button
                 type="button"
@@ -455,7 +455,7 @@ export default function SimpleReveal({ active = true }: { active?: boolean }) {
                   <FileText size={16} />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-white">{result.name}</p>
+                  <p data-no-translate className="truncate text-sm font-bold text-white">{result.name}</p>
                   <p className="mono text-[11px] text-[#718096]">{fmtBytes(result.data.length)}</p>
                 </div>
               </div>
@@ -497,7 +497,7 @@ export default function SimpleReveal({ active = true }: { active?: boolean }) {
                   className="card-inset flex items-center justify-between gap-3 p-3 animate-fade-in"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-white">{f.name}</p>
+                    <p data-no-translate className="truncate text-sm font-bold text-white">{f.name}</p>
                     <p className="mono text-[11px] text-[#718096]">{fmtBytes(f.data.length)}</p>
                   </div>
                   <button

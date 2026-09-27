@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { setActiveLanguage, translateVisible } from '../i18n/runtime';
 
-export type Language = 'English' | 'Hindi' | 'Kannada' | 'Spanish' | 'French';
+export type Language = 'English' | 'Hindi' | 'Kannada' | 'Spanish' | 'French' | 'Tamil' | 'Telugu' | 'Marathi' | 'Bengali' | 'Gujarati' | 'Malayalam';
 
 export interface Translations {
     nav: {
@@ -253,7 +254,7 @@ export interface Translations {
     };
 }
 
-export const dictionaries: Record<Language, Translations> = {
+const dictionariesBase: Record<'English' | 'Hindi' | 'Kannada' | 'Spanish' | 'French', Translations> = {
     English: {
         nav: {
             home: 'Home',
@@ -1510,12 +1511,28 @@ export const dictionaries: Record<Language, Translations> = {
     }
 };
 
+export const dictionaries: Record<Language, Translations> = {
+    ...dictionariesBase,
+    Tamil: dictionariesBase.English,
+    Telugu: dictionariesBase.English,
+    Marathi: dictionariesBase.English,
+    Bengali: dictionariesBase.English,
+    Gujarati: dictionariesBase.English,
+    Malayalam: dictionariesBase.English,
+};
+
 export const LANG_OPTIONS = [
     { code: 'English', native: 'English', label: 'English' },
     { code: 'Hindi', native: 'हिन्दी', label: 'Hindi' },
     { code: 'Kannada', native: 'ಕನ್ನಡ', label: 'Kannada' },
     { code: 'Spanish', native: 'Español', label: 'Spanish' },
     { code: 'French', native: 'Français', label: 'French' },
+    { code: 'Tamil', native: 'தமிழ்', label: 'Tamil' },
+    { code: 'Telugu', native: 'తెలుగు', label: 'Telugu' },
+    { code: 'Marathi', native: 'मराठी', label: 'Marathi' },
+    { code: 'Bengali', native: 'বাংলা', label: 'Bengali' },
+    { code: 'Gujarati', native: 'ગુજરાતી', label: 'Gujarati' },
+    { code: 'Malayalam', native: 'മലയാളം', label: 'Malayalam' },
 ] as const;
 
 const codeMap: Record<string, Language> = {
@@ -1524,11 +1541,13 @@ const codeMap: Record<string, Language> = {
     KN: 'Kannada',
     ES: 'Spanish',
     FR: 'French',
+    TA: 'Tamil', TE: 'Telugu', MR: 'Marathi', BN: 'Bengali', GU: 'Gujarati', ML: 'Malayalam',
     English: 'English',
     Hindi: 'Hindi',
     Kannada: 'Kannada',
     Spanish: 'Spanish',
-    French: 'French'
+    French: 'French',
+    Tamil: 'Tamil', Telugu: 'Telugu', Marathi: 'Marathi', Bengali: 'Bengali', Gujarati: 'Gujarati', Malayalam: 'Malayalam'
 };
 
 export interface LanguageContextType {
@@ -1543,16 +1562,24 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [language, setLanguageState] = useState<Language>(() => {
-        const saved = typeof window !== 'undefined' ? localStorage.getItem('quietsend_language') : null;
+        let saved: string | null = null;
+        try { saved = typeof window !== 'undefined' ? localStorage.getItem('quietsend_language') : null; } catch { /* private browsing */ }
         if (saved && codeMap[saved]) return codeMap[saved];
         return 'English';
     });
+    setActiveLanguage(language);
+    useEffect(() => {
+        if (typeof document !== 'undefined') {
+            document.documentElement.lang = { English: 'en', Hindi: 'hi', Kannada: 'kn', Spanish: 'es', French: 'fr', Tamil: 'ta', Telugu: 'te', Marathi: 'mr', Bengali: 'bn', Gujarati: 'gu', Malayalam: 'ml' }[language];
+            document.title = translateVisible('QuietSend by GhostByte — Hide Encrypted Messages & Files');
+        }
+    }, [language]);
 
     const setLanguage = (l: Language | string) => {
         const mapped = codeMap[l] || 'English';
         setLanguageState(mapped);
         if (typeof window !== 'undefined') {
-            localStorage.setItem('quietsend_language', mapped);
+            try { localStorage.setItem('quietsend_language', mapped); } catch { /* preference remains active for this visit */ }
         }
     };
 

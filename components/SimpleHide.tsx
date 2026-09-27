@@ -265,7 +265,7 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
                 className="h-16 w-16 shrink-0 rounded-lg object-cover border border-black/60 shadow-md"
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-white">{photo.name}</p>
+                <p data-no-translate className="truncate text-sm font-bold text-white">{photo.name}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-mono text-[#a0aec0]">
                   <span className="rounded bg-[#1c222e] border border-black/40 px-1.5 py-0.5 shadow-inner">
                     {photo.w}×{photo.h}
@@ -456,7 +456,7 @@ export default function SimpleHide({ onSwitchToPro, active = true }: { onSwitchT
                 key={`${f.name}-${f.data.length}-${i}`}
                 className="card-inset flex items-center justify-between gap-2 p-2.5 text-xs animate-fade-in"
               >
-                <span className="truncate font-semibold text-white">{f.name}</span>
+                <span data-no-translate className="truncate font-semibold text-white">{f.name}</span>
                 <span className="flex shrink-0 items-center gap-2">
                   <span className="mono text-[#64b5f6]">{fmtBytes(f.data.length)}</span>
                   <button
